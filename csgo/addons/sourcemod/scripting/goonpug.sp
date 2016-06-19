@@ -1027,8 +1027,11 @@ public Action:Event_PlayerDisconnect(
         {
             if (ClientIsReady(client))
             {
-                ChangeMatchState(MS_PICK_CAPTAINS);
-                PrintToChatAll("[GP] Will restart picking teams when we have enough players...");
+                ChangeMatchState(MS_WARMUP);
+                PrintToChatAll("[GP] Aborting match setup due to player diconnection...");
+                if (IsVoteInProgress())
+                    CancelVote();
+                UnReadyClient(client);
                 StartReadyUp(false);
             }
         }
@@ -2239,7 +2242,7 @@ public Action:Event_CsWinPanelMatch(Handle:event, const String:name[], bool:dont
     return Plugin_Continue;
 }
 
-PostMatch(bool:abort=false)
+PostMatch(bool:abort=false, bool:samemap=false)
 {
     ChangeMatchState(MS_POST_MATCH);
     StopServerDemo();
@@ -2253,7 +2256,7 @@ PostMatch(bool:abort=false)
     }
 
     // Set the nextmap to a warmup map
-    if (GetArraySize(hWarmupMapKeys) > 0)
+    if (!samemap && GetArraySize(hWarmupMapKeys) > 0)
     {
         new rand = GetURandomInt() % GetArraySize(hWarmupMapKeys);
         decl String:fileid[32];
@@ -2407,6 +2410,13 @@ public Action:Command_AbortMatch(client, args)
         {
             PrintToChatAll("[GP] Aborting current match.");
             PostMatch(true);
+        }
+        case MS_MAP_VOTE, MS_PICK_CAPTAINS, MS_PICK_TEAMS:
+        {
+            PrintToChatAll("[GP] Aborting match setup.");
+            if (IsVoteInProgress())
+                CancelVote();
+            PostMatch(true, true);
         }
         default:
         {
