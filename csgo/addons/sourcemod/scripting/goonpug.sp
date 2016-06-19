@@ -44,7 +44,6 @@
 #include <smjansson>
 
 #include <gp_team>
-#include <gp_web>
 #include <gp_skill>
 
 #define GOONPUG_VERSION "1.0-beta"
@@ -195,7 +194,6 @@ public OnPluginStart()
     ResetReadyUp();
 
     GpTeam_Init();
-    GpWeb_Init();
     GpSkill_Init();
 
     hPlayerRating = CreateTrie();
@@ -242,7 +240,6 @@ public OnPluginEnd()
         CloseHandle(hPlayerDisconnectTimersTrie);
 
     GpSkill_Fini();
-    GpWeb_Fini();
     GpTeam_Fini();
 }
 
@@ -358,12 +355,7 @@ public OnClientAuthorized(client, const String:auth[])
     }
 
     new Float:rating = 0.0;
-    if (GpWeb_Enabled())
-    {
-        rating = GpWeb_FetchPlayerRating(auth);
-        SetTrieValue(hPlayerRating, auth, rating);
-    }
-    else if (GpSkill_Enabled())
+    if (GpSkill_Enabled())
     {
         rating = GpSkill_FetchPlayerRating(auth);
         SetTrieValue(hPlayerRating, auth, rating);
@@ -477,7 +469,7 @@ public OnMapStart()
 
     ClearSaves();
 
-    if (GpWeb_Enabled() || GpSkill_Enabled())
+    if (GpSkill_Enabled())
     {
         // Refresh everyone's average rating
         for (new i = 1; i <= MaxClients; i++)
@@ -487,10 +479,7 @@ public OnMapStart()
                 decl Float:rating;
                 decl String:auth[STEAMID_LEN];
                 GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
-                if (GpWeb_Enabled())
-                    rating = GpWeb_FetchPlayerRating(auth);
-                else
-                    rating = GpSkill_FetchPlayerRating(auth);
+                rating = GpSkill_FetchPlayerRating(auth);
                 SetTrieValue(hPlayerRating, auth, rating);
             }
         }
@@ -1460,7 +1449,7 @@ ChooseCaptains()
     new count = 0;
     new i = 0;
     new maxCaptains = GetConVarInt(hRestrictCaptainsLimit);
-    if (maxCaptains < 2 || !(GpWeb_Enabled() || GpSkill_Enabled()))
+    if (maxCaptains < 2 || !GpSkill_Enabled())
         maxCaptains = 10;
 
     // Get up to 4 highest rating players
@@ -1474,7 +1463,7 @@ ChooseCaptains()
             decl String:name[MAX_NAME_LENGTH];
             GetClientName(client, name, sizeof(name));
             decl String:display[MAX_NAME_LENGTH * 2];
-            if (GpWeb_Enabled() || GpSkill_Enabled())
+            if (GpSkill_Enabled())
             {
                 decl Float:rating;
                 GetTrieValue(hPlayerRating, auth, rating);
@@ -1542,13 +1531,13 @@ SortPlayersByRating()
             PushArrayCell(hSortedClients, i);
         }
     }
-    if (GpWeb_Enabled() || GpSkill_Enabled())
+    if (GpSkill_Enabled())
         SortADTArrayCustom(hSortedClients, RatingSortDescending);
 }
 
 public RatingSortDescending(index1, index2, Handle:array, Handle:hndl)
 {
-    if (!(GpWeb_Enabled() || GpSkill_Enabled()))
+    if (!GpSkill_Enabled())
         return 0;
 
     decl String:auth1[STEAMID_LEN];
@@ -1608,7 +1597,7 @@ DetermineFirstPick()
     LogAction(g_captClients[0], -1, "\"%L\" triggered \"GP Captain\"", g_captClients[0]);
     LogAction(g_captClients[1], -1, "\"%L\" triggered \"GP Captain\"", g_captClients[1]);
 
-    if (GpWeb_Enabled() || GpSkill_Enabled())
+    if (GpSkill_Enabled())
     {
         decl Float:capt1rating;
         if (capt1 < 0)
@@ -1975,7 +1964,7 @@ Handle:BuildPickMenu(pickNum)
         decl String:name[MAX_NAME_LENGTH];
         GetClientName(client, name, sizeof(name));
         decl String:display[MAX_NAME_LENGTH];
-        if (GpWeb_Enabled() || GpSkill_Enabled())
+        if (GpSkill_Enabled())
         {
             decl String:auth[STEAMID_LEN];
             GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
@@ -2288,7 +2277,7 @@ public Action:Timer_Lo3(Handle:timer)
 StartServerDemo()
 {
     if (g_recording)
-        StopServerDemo(false);
+        StopServerDemo();
     new time = GetTime();
     decl String:timestamp[128];
     FormatTime(timestamp, sizeof(timestamp), "%F_%H.%M", time);
@@ -2303,7 +2292,7 @@ StartServerDemo()
     g_recording = true;
 }
 
-StopServerDemo(bool:save=true)
+StopServerDemo()
 {
     ServerCommand("tv_stoprecord\n");
     g_recording = false;
@@ -2347,14 +2336,13 @@ public Action:Event_CsWinPanelMatch(Handle:event, const String:name[], bool:dont
 PostMatch(bool:abort=false)
 {
     ChangeMatchState(MS_POST_MATCH);
+    StopServerDemo();
     if (abort)
     {
-        StopServerDemo(false);
         LogToGame("GoonPUG triggered \"Abort_Match\"");
     }
     else
     {
-        StopServerDemo();
         LogToGame("GoonPUG triggered \"End_Match\"");
     }
 
