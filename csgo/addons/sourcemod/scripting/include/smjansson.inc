@@ -57,14 +57,14 @@ native json_type:json_typeof(Handle:hObj);
 /**
  * Saves json_type as a String in out
  *
- * @param in                json_type value to convert to string
+ * @param inval             json_type value to convert to string
  * @param out               Buffer to store the json_type value
  * @param maxlength         Maximum length of string buffer.
  *
  * @return                  False if the type does not exist.
  */
-stock bool:Stringify_json_type(json_type:in, String:out[], maxlength) {
-	switch(in) {
+stock bool:Stringify_json_type(json_type:inval, String:out[], maxlength) {
+	switch(inval) {
 		case JSON_OBJECT:		strcopy(out, maxlength, "Object");
 		case JSON_ARRAY:		strcopy(out, maxlength, "Array");
 		case JSON_STRING:		strcopy(out, maxlength, "String");

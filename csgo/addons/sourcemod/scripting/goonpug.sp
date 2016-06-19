@@ -249,7 +249,7 @@ public OnPluginEnd()
 ClearTimerForClient(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     ClearTimerForAuth(auth);
 }
@@ -265,7 +265,7 @@ ClearTimerForAuth(String:auth[])
 SetTimerForClient(client, Handle:timer)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     SetTrieValue(hPlayerDisconnectTimersTrie, auth, timer);
 }
@@ -280,7 +280,7 @@ MoveFromWaitingToReady(client)
 MoveFromReadyToWaiting(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     decl String:name[MAX_NAME_LENGTH];
     GetClientName(client, name, sizeof(name));
@@ -316,7 +316,7 @@ UnWaitClientByAuth(String:auth[])
 UnWaitClient(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     UnWaitClientByAuth(auth);
 }
@@ -324,7 +324,7 @@ UnWaitClient(client)
 WaitClient(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     decl String:name[MAX_NAME_LENGTH];
     GetClientName(client, name, sizeof(name));
@@ -336,7 +336,7 @@ WaitClient(client)
 ClientIsWaiting(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     return FindStringInArray(hPlayerWaitingAuthArray, auth) > -1;
 }
@@ -486,7 +486,7 @@ public OnMapStart()
             {
                 decl Float:rating;
                 decl String:auth[STEAMID_LEN];
-                GetClientAuthString(i, auth, sizeof(auth));
+                GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
                 if (GpWeb_Enabled())
                     rating = GpWeb_FetchPlayerRating(auth);
                 else
@@ -806,7 +806,7 @@ bool:NeedReadyUp()
 UnReadyClient(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     if (ClientIsReady(client))
         RemoveFromArray(hPlayerReadyArray, FindStringInArray(hPlayerReadyArray, auth));
@@ -815,7 +815,7 @@ UnReadyClient(client)
 ReadyClient(client)
 {
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     if (!ClientIsReady(client))
         PushArrayString(hPlayerReadyArray, auth);
@@ -826,7 +826,7 @@ bool:ClientIsReady(client)
     if (!IsValidPlayerForReady(client)) return false;
 
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     return (FindStringInArray(hPlayerReadyArray, auth) > -1);
 }
@@ -1000,7 +1000,7 @@ public Action:Command_Ready(client, args)
             case MS_PRE_LIVE:
             {
                 decl String:auth[STEAMID_LEN];
-                GetClientAuthString(client, auth, sizeof(auth));
+                GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
                 new GpTeam:assignedTeam = GP_TEAM_NONE;
                 new index = FindStringInArray(hTeam1, auth);
@@ -1115,7 +1115,7 @@ public Action:Event_PlayerDisconnect(
     }
 
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
     decl String:playerName[MAX_NAME_LENGTH];
     GetClientName(client, playerName, sizeof(playerName));
     decl String:reason[MAX_NAME_LENGTH];
@@ -1460,7 +1460,7 @@ ChooseCaptains()
     new count = 0;
     new i = 0;
     new maxCaptains = GetConVarInt(hRestrictCaptainsLimit);
-    if (maxCaptains < 2 || !(GpWeb_Enabled() || GpSkill_Enabled))
+    if (maxCaptains < 2 || !(GpWeb_Enabled() || GpSkill_Enabled()))
         maxCaptains = 10;
 
     // Get up to 4 highest rating players
@@ -1470,7 +1470,7 @@ ChooseCaptains()
         if (ClientIsReady(client))
         {
             decl String:auth[STEAMID_LEN];
-            GetClientAuthString(client, auth, sizeof(auth));
+            GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
             decl String:name[MAX_NAME_LENGTH];
             GetClientName(client, name, sizeof(name));
             decl String:display[MAX_NAME_LENGTH * 2];
@@ -1542,7 +1542,7 @@ SortPlayersByRating()
             PushArrayCell(hSortedClients, i);
         }
     }
-    if (GpWeb_Enabled() || GpSkill_Enabled)
+    if (GpWeb_Enabled() || GpSkill_Enabled())
         SortADTArrayCustom(hSortedClients, RatingSortDescending);
 }
 
@@ -1552,9 +1552,9 @@ public RatingSortDescending(index1, index2, Handle:array, Handle:hndl)
         return 0;
 
     decl String:auth1[STEAMID_LEN];
-    GetClientAuthString(GetArrayCell(array, index1), auth1, sizeof(auth1));
+    GetClientAuthId(GetArrayCell(array, index1), AuthId_Steam2, auth1, sizeof(auth1));
     decl String:auth2[STEAMID_LEN];
-    GetClientAuthString(GetArrayCell(array, index2), auth2, sizeof(auth2));
+    GetClientAuthId(GetArrayCell(array, index2), AuthId_Steam2, auth2, sizeof(auth2));
 
     decl Float:rating1;
     if (!GetTrieValue(hPlayerRating, auth1, rating1))
@@ -1619,7 +1619,7 @@ DetermineFirstPick()
         else
         {
             decl String:auth1[STEAMID_LEN];
-            GetClientAuthString(capt1, auth1, sizeof(auth1));
+            GetClientAuthId(capt1, AuthId_Steam2, auth1, sizeof(auth1));
             if (!GetTrieValue(hPlayerRating, auth1, capt1rating))
             {
                 capt1rating = 0.0;
@@ -1635,7 +1635,7 @@ DetermineFirstPick()
         else
         {
             decl String:auth2[STEAMID_LEN];
-            GetClientAuthString(capt2, auth2, sizeof(auth2));
+            GetClientAuthId(capt2, AuthId_Steam2, auth2, sizeof(auth2));
             if (!GetTrieValue(hPlayerRating, auth2, capt2rating))
             {
                 capt2rating = 0.0;
@@ -1784,7 +1784,7 @@ FindClientByAuthString(const String:auth[])
         if (IsValidPlayer(i) && !IsFakeClient(i))
         {
             decl String:clientAuth[STEAMID_LEN];
-            GetClientAuthString(i, clientAuth, sizeof(clientAuth));
+            GetClientAuthId(i, AuthId_Steam2, clientAuth, sizeof(clientAuth));
             if (StrEqual(clientAuth, auth))
             {
                 return i;
@@ -1978,7 +1978,7 @@ Handle:BuildPickMenu(pickNum)
         if (GpWeb_Enabled() || GpSkill_Enabled())
         {
             decl String:auth[STEAMID_LEN];
-            GetClientAuthString(client, auth, sizeof(auth));
+            GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
             decl Float:rating;
             if (!GetTrieValue(hPlayerRating, auth, rating))
                 rating = 0.0;
@@ -2048,7 +2048,7 @@ public Action:Command_Jointeam(client, const String:command[], argc)
     new team = StringToInt(param);
 
     decl String:auth[STEAMID_LEN];
-    GetClientAuthString(client, auth, sizeof(auth));
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
     // Always let players move to spec
     if (team == CS_TEAM_SPECTATOR)
@@ -2485,7 +2485,7 @@ LockCurrentTeams()
         if (IsValidPlayer(i) && !IsFakeClient(i))
         {
             decl String:auth[STEAMID_LEN];
-            GetClientAuthString(i, auth, sizeof(auth));
+            GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
             switch (GetClientTeam(i))
             {
                 case CS_TEAM_CT:
