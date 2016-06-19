@@ -169,11 +169,8 @@ public OnPluginStart()
     AddCommandListener(Command_Say, "say_team");
 
     // Hook events
-    //HookEvent("round_start", Event_RoundStart);
-    //HookEvent("round_end", Event_RoundEnd);
     HookEvent("announce_phase_end", Event_AnnouncePhaseEnd);
     HookEvent("cs_win_panel_match", Event_CsWinPanelMatch);
-    //HookEvent("player_death", Event_PlayerDeath);
     HookEvent("player_disconnect", Event_PlayerDisconnect);
     HookEvent("player_team", Event_PlayerTeam);
 
@@ -1112,7 +1109,6 @@ OnAllReady()
         {
             ChooseMatchMap();
         }
-        //case MS_MAPVOTE: // Do nothing
         case MS_PICK_CAPTAINS:
         {
             ChooseCaptains();
@@ -1390,8 +1386,6 @@ ChooseCaptains()
         }
         i++;
     }
-    // TODO implement random option
-    //AddMenuItem(menu, "", "Scramble teams");
 
     if (count < 2)
     {
