@@ -101,6 +101,7 @@ new g_captClients[2];
 new g_period = 0;
 new Handle:hTeamPickMenu = INVALID_HANDLE;
 new g_whosePick = 0;
+new bool:g_justgo = false;
 
 // demo stuff
 new bool:g_recording = false;
@@ -153,6 +154,8 @@ public OnPluginStart()
     RegDotCmd("unready", Command_Unready, "Set yourself as not ready.");
     RegDotCmd("notready", Command_Unready, "Set yourself as not ready.");
 
+    RegAdminCmd("sm_justgo", Command_JustGo, ADMFLAG_CHANGEMAP,
+                "Start a live match with the current teams.");
     RegAdminCmd("sm_lo3", Command_Lo3, ADMFLAG_CHANGEMAP,
                 "Start a live match with the current teams.");
     RegAdminCmd("sm_abortmatch", Command_AbortMatch, ADMFLAG_CHANGEMAP,
@@ -746,7 +749,7 @@ public Action:Timer_ReadyUp(Handle:timer)
     }
 
     new readyCount = CountReadyAndInGame();
-    if (readyCount == neededCount)
+    if (readyCount == neededCount || g_justgo)
     {
         if (g_matchState == MS_POST_MATCH)
         {
@@ -754,6 +757,7 @@ public Action:Timer_ReadyUp(Handle:timer)
         }
         else
         {
+            g_justgo = false;
             OnAllReady();
             return Plugin_Stop;
         }
@@ -1804,7 +1808,7 @@ public Action:Timer_PickTeams(Handle:timer)
     if (hTeamPickMenu != INVALID_HANDLE)
         return Plugin_Continue;
 
-    if ((GetArraySize(hTeam1) + GetArraySize(hTeam2)) == g_maxPlayers)
+    if (GetArraySize(hSortedClients) == 0)
     {
         PrintToChatAll("[GP] Done picking teams.");
 
@@ -2363,6 +2367,13 @@ public VoteHandler_OvertimeVote(Handle:menu, num_votes, num_clients, const clien
         PrintToChatAll("[GP] Match ended.");
         PostMatch();
     }
+}
+
+public Action:Command_JustGo(client, args)
+{
+    g_justgo = true;
+
+    return Plugin_Handled;
 }
 
 public Action:Command_Lo3(client, args)
