@@ -44,7 +44,7 @@
 #include <gp_team>
 #include <gp_skill>
 
-#define GOONPUG_VERSION "1.0-beta"
+#define GOONPUG_VERSION "1.1-beta-talljoe"
 #define MAX_ROUNDS 128
 #define MAX_CMD_LEN 32
 #define STEAMID_LEN 32
