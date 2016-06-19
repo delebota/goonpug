@@ -40,8 +40,6 @@
 #include <sdktools>
 #include <sdktools_functions>
 #include <protobuf>
-#include <cURL>
-#include <smjansson>
 
 #include <gp_team>
 #include <gp_skill>
@@ -632,7 +630,6 @@ ParseMapList(Handle:mapList, MapCollection:mc)
         GetArrayString(mapList, i, mapname, sizeof(mapname));
         if (0 == strncmp(mapname, "workshop/", 9))
         {
-            new bool:cached = false;
             decl String:strs[3][128];
             ExplodeString(mapname, "/", strs, 3, 128);
             switch (mc)
@@ -640,16 +637,14 @@ ParseMapList(Handle:mapList, MapCollection:mc)
                 case MC_MATCH:
                 {
                     PushArrayString(hMatchMapKeys, strs[1]);
-                    cached = GetTrieString(hMatchMaps, strs[1], mapname, sizeof(mapname));
+                    SetTrieString(hMatchMaps, strs[1], strs[2]);
                 }
                 case MC_WARMUP:
                 {
                     PushArrayString(hWarmupMapKeys, strs[1]);
-                    cached = GetTrieString(hWarmupMaps, strs[1], mapname, sizeof(mapname));
+                    SetTrieString(hWarmupMaps, strs[1], strs[2]);
                 }
             }
-            if (!cached)
-                FetchMapName(strs[1], mc);
         }
         else
         {
@@ -671,89 +666,6 @@ ParseMapList(Handle:mapList, MapCollection:mc)
             localKey++;
         }
     }
-}
-
-FetchMapName(const String:fileid[], MapCollection:mc)
-{
-    new Handle:hCurl = curl_easy_init();
-    if (hCurl == INVALID_HANDLE)
-        return;
-
-    new CURL_Default_opt[][2] = {
-        {_:CURLOPT_NOSIGNAL, 1},
-        {_:CURLOPT_NOPROGRESS, 1},
-        {_:CURLOPT_TIMEOUT, 90},
-        {_:CURLOPT_CONNECTTIMEOUT, 60},
-        {_:CURLOPT_VERBOSE, 0}
-    };
-    curl_easy_setopt_int_array(hCurl, CURL_Default_opt, sizeof(CURL_Default_opt));
-
-    decl String:data[128];
-    Format(data, sizeof(data), "itemcount=1&publishedfileids[0]=%s", fileid);
-    curl_easy_setopt_string(hCurl, CURLOPT_POSTFIELDS, data);
-    new Handle:hPack = CreateDataPack();
-    curl_easy_setopt_function(hCurl, CURLOPT_WRITEFUNCTION, CurlReceiveCb, hPack);
-    curl_easy_setopt_string(hCurl, CURLOPT_URL,
-            "http://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/");
-    WritePackCell(hPack, mc);
-    curl_easy_perform_thread(hCurl, FetchMapCb, hPack);
-}
-
-public FetchMapCb(Handle:hCurl, CURLcode:code, any:hPack)
-{
-    CloseHandle(hCurl);
-    if (CURLE_OK != code)
-    {
-        LogError("Curl could not fetch map");
-        return;
-    }
-    else
-    {
-        new endpos = GetPackPosition(hPack);
-        ResetPack(hPack);
-        new mc = ReadPackCell(hPack);
-        decl String:receiveStr[CURL_BUFSIZE];
-        strcopy(receiveStr, sizeof(receiveStr), "");
-        while (GetPackPosition(hPack) < endpos)
-        {
-            decl String:buf[CURL_BUFSIZE];
-            ReadPackString(hPack, buf, sizeof(buf));
-            StrCat(receiveStr, sizeof(receiveStr), buf);
-        }
-        new Handle:hJson = json_load(receiveStr);
-        new Handle:hResponse = json_object_get(hJson, "response");
-        new Handle:hDetails = json_object_get(hResponse, "publishedfiledetails");
-        new Handle:hDetail = json_array_get(hDetails, 0);
-        decl String:map[MAX_MAPNAME_LEN];
-        json_object_get_string(hDetail, "filename", map, sizeof(map));
-        decl String:fileid[32];
-        json_object_get_string(hDetail, "publishedfileid", fileid, sizeof(fileid));
-        // filenames come back as "mymaps/mapname.bsp"
-        ReplaceString(map, sizeof(map), "mymaps/", "");
-        ReplaceString(map, sizeof(map), ".bsp", "");
-        switch (mc)
-        {
-            case MC_MATCH:
-            {
-                SetTrieString(hMatchMaps, fileid, map);
-            }
-            case MC_WARMUP:
-            {
-                SetTrieString(hWarmupMaps, fileid, map);
-            }
-        }
-
-        CloseHandle(hJson);
-    }
-    CloseHandle(hPack);
-}
-
-public CurlReceiveCb(Handle:hCurl, const String:buffer[], const bytes, const nmemb, any:hPack)
-{
-    decl String:buf[CURL_BUFSIZE];
-    strcopy(buf, sizeof(buf), buffer);
-    WritePackString(hPack, buf);
-    return bytes * nmemb;
 }
 
 /**

@@ -24,10 +24,9 @@ After all players have readied up, the following steps will occur:
 Requirements
 ------------
 
-- [SourceMod 1.6](http://www.sourcemod.net) - Either an official release build or a stable branch snapshot should work
+- [SourceMod 1.8](http://www.sourcemod.net) - Either an official release build or a stable branch snapshot should work
 - [SM cURL](http://forums.alliedmods.net/showthread.php?t=152216)
 - [SMJansson](http://forums.alliedmods.net/showthread.php?t=184604)
-- [sm-zip](https://github.com/pmrowla/sm-zip)
 
 Please note that the plugin has only been tested on Linux dedicated servers.
 In theory everything should also work on Windows servers, but there are no guarantees.
@@ -75,12 +74,8 @@ Plugin Cvars
 
 GoonPUG cvars can be set or overridden in your `sourcemod.cfg` file.
 
--   `gp_web_api_enabled` specifies whether or not the plugin should use the goonpug-web stats API.
+-   `gp_skill_enabled` specifies whether or not the plugin should use the goonpug stats.
     Defaults to `"0"`.
--   `gp_web_api_url` specifies the URL for the goonpug-web stats API.
-    This has no effect if `gp_web_api_enabled` is set to zero.
-    URLs should be entered with the `/api` suffix (e.g. `http://goonpug.com/api`)
-
 
 Server configs
 --------------
