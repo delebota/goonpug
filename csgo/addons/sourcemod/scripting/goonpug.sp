@@ -42,7 +42,6 @@
 #include <protobuf>
 #include <cURL>
 #include <smjansson>
-#include <zip>
 
 #include <gp_team>
 #include <gp_web>
@@ -2307,52 +2306,7 @@ StartServerDemo()
 StopServerDemo(bool:save=true)
 {
     ServerCommand("tv_stoprecord\n");
-    new Handle:hPack = CreateDataPack();
-    WritePackCell(hPack, save);
-    WritePackString(hPack, g_demoname);
-    // Need to wait here for tv_stoprecord to finish
-    // CreateTimer(5.0, Timer_CompressDemo, hPack);
     g_recording = false;
-}
-
-public Action:Timer_CompressDemo(Handle:timer, Handle:pack)
-{
-    ResetPack(pack);
-    new bool:save = ReadPackCell(pack);
-    decl String:demoname[PLATFORM_MAX_PATH];
-    ReadPackString(pack, demoname, sizeof(demoname));
-
-    decl String:demo[PLATFORM_MAX_PATH];
-    Format(demo, sizeof(demo), "%s.dem", demoname);
-    if (save)
-    {
-        decl String:zip[PLATFORM_MAX_PATH];
-        Format(zip, sizeof(zip), "%s.zip", demoname);
-        new Handle:hZip = Zip_Open(zip, ZIP_APPEND_STATUS_CREATE);
-        if (INVALID_HANDLE != hZip)
-        {
-            if (!Zip_AddFile(hZip, demo))
-            {
-                LogError("Could not compress demo file %s", demo, zip);
-                CloseHandle(hZip);
-                DeleteFile(zip);
-            }
-            else
-            {
-                CloseHandle(hZip);
-                LogToGame("Wrote compressed demo %s", zip);
-                DeleteFile(demo);
-            }
-        }
-        else
-        {
-            LogError("Could not open %s for writing", zip);
-        }
-    }
-    else
-    {
-        DeleteFile(demo);
-    }
 }
 
 public Action:Event_AnnouncePhaseEnd(Handle:event, const String:name[], bool:dontBroadcast)
