@@ -85,7 +85,7 @@ GpTeam_AssignPlayerTeam(client, GpTeam:team, bool:changeTeam=true)
     if (IsValidPlayer(client))
     {
         decl String:auth[STEAMID_LEN];
-        GetClientAuthString(client, auth, sizeof(auth));
+        GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
         decl index;
         if (team == GP_TEAM_1)
