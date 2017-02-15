@@ -2193,7 +2193,7 @@ StartServerDemo()
         StopServerDemo();
     new time = GetTime();
     decl String:timestamp[128];
-    FormatTime(timestamp, sizeof(timestamp), "%Y-%m-%d_%H.%M", time);
+    FormatTime(timestamp, sizeof(timestamp), "%Y-%m-%d_%H-%M", time);
     decl String:map[256];
     GetCurrentMap(map, sizeof(map));
     /* Strip workshop prefixes */
