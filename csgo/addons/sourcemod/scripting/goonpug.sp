@@ -44,7 +44,7 @@
 #include <gp_team>
 #include <gp_skill>
 
-#define GOONPUG_VERSION "1.1-beta-talljoe"
+#define GOONPUG_VERSION "2.0-beta"
 #define MAX_ROUNDS 128
 #define MAX_CMD_LEN 32
 #define STEAMID_LEN 32
@@ -92,6 +92,8 @@ new Handle:hPlayerWaitingAuthArray = INVALID_HANDLE;
 new Handle:hPlayerDisconnectTimersTrie = INVALID_HANDLE;
 
 new Handle:hPlayerRating = INVALID_HANDLE;
+new Handle:hPlayerDeviation = INVALID_HANDLE;
+new Handle:hPlayerVolatility = INVALID_HANDLE;
 new Handle:hSortedClients = INVALID_HANDLE;
 
 new Handle:hRestrictCaptainsLimit = INVALID_HANDLE;
@@ -101,7 +103,6 @@ new g_captClients[2];
 new g_period = 0;
 new Handle:hTeamPickMenu = INVALID_HANDLE;
 new g_whosePick = 0;
-new bool:g_justgo = false;
 
 // demo stuff
 new bool:g_recording = false;
@@ -119,6 +120,9 @@ new Handle:hEnforceRates = INVALID_HANDLE;
 #define MIN_CMDRATE 128
 #define MIN_UPDATERATE 128
 #define WARN_INTERP_RATIO 1.0
+
+new Handle:hTeam1Snapshot = INVALID_HANDLE;
+new Handle:hTeam2Snapshot = INVALID_HANDLE;
 
 /**
  * Public plugin info
@@ -138,24 +142,23 @@ public OnPluginStart()
 {
     // Set up GoonPUG convars
     CreateConVar("sm_goonpug_version", GOONPUG_VERSION, "GoonPUG Plugin Version",
-            FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_DONTRECORD);
+            FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_DONTRECORD);
 
-    hRestrictCaptainsLimit = CreateConVar("gp_restrict_captains_limit", "0",
+    hRestrictCaptainsLimit = CreateConVar("gp_restrict_captains_limit", "5",
             "Restricts number of potential captains to the top N players",
-            FCVAR_PLUGIN |FCVAR_SPONLY);
+            FCVAR_SPONLY);
 
     hEnforceRates = CreateConVar("gp_enforce_rates", "0",
             "Enforces client rate cvars",
-            FCVAR_PLUGIN | FCVAR_SPONLY);
+            FCVAR_SPONLY);
 
     // Register commands
     hDotCmds = CreateArray(MAX_CMD_LEN);
     RegDotCmd("ready", Command_Ready, "Set yourself as ready.");
     RegDotCmd("unready", Command_Unready, "Set yourself as not ready.");
     RegDotCmd("notready", Command_Unready, "Set yourself as not ready.");
-
-    RegAdminCmd("sm_justgo", Command_JustGo, ADMFLAG_CHANGEMAP,
-                "Start a live match with the current teams.");
+    RegDotCmd("rating", Command_ShowRating, "Show your GPSkill Rating.");
+    
     RegAdminCmd("sm_lo3", Command_Lo3, ADMFLAG_CHANGEMAP,
                 "Start a live match with the current teams.");
     RegAdminCmd("sm_abortmatch", Command_AbortMatch, ADMFLAG_CHANGEMAP,
@@ -195,6 +198,8 @@ public OnPluginStart()
     GpSkill_Init();
 
     hPlayerRating = CreateTrie();
+    hPlayerDeviation = CreateTrie();
+    hPlayerVolatility = CreateTrie();
     hSortedClients = CreateArray();
 }
 
@@ -212,6 +217,10 @@ public OnPluginEnd()
         CloseHandle(hWarmupMaps);
     if (hPlayerRating != INVALID_HANDLE)
         CloseHandle(hPlayerRating);
+    if (hPlayerDeviation != INVALID_HANDLE)
+        CloseHandle(hPlayerDeviation);
+    if (hPlayerVolatility != INVALID_HANDLE)
+        CloseHandle(hPlayerVolatility);
     if (hSortedClients != INVALID_HANDLE)
         CloseHandle(hSortedClients);
     if (hSaveCash != INVALID_HANDLE)
@@ -236,6 +245,10 @@ public OnPluginEnd()
         CloseHandle(hPlayerWaitingNameArray);
     if (hPlayerDisconnectTimersTrie != INVALID_HANDLE)
         CloseHandle(hPlayerDisconnectTimersTrie);
+    if (hTeam1Snapshot != INVALID_HANDLE)
+        CloseHandle(hTeam1Snapshot);
+    if (hTeam2Snapshot != INVALID_HANDLE)
+        CloseHandle(hTeam2Snapshot);
 
     GpSkill_Fini();
     GpTeam_Fini();
@@ -352,11 +365,13 @@ public OnClientAuthorized(client, const String:auth[])
         MoveFromWaitingToReady(client);
     }
 
-    new Float:rating = 0.0;
     if (GpSkill_Enabled())
     {
-        rating = GpSkill_FetchPlayerRating(auth);
-        SetTrieValue(hPlayerRating, auth, rating);
+        new Float:stats[3];
+        stats = GpSkill_FetchPlayerStats(auth);
+        SetTrieValue(hPlayerRating, auth, stats[0]);
+        SetTrieValue(hPlayerDeviation, auth, stats[1]);
+        SetTrieValue(hPlayerVolatility, auth, stats[2]);
     }
 
     new enforceRates = GetConVarInt(hEnforceRates);
@@ -474,11 +489,14 @@ public OnMapStart()
         {
             if (IsValidPlayer(i) && !IsFakeClient(i))
             {
-                decl Float:rating;
                 decl String:auth[STEAMID_LEN];
                 GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
-                rating = GpSkill_FetchPlayerRating(auth);
-                SetTrieValue(hPlayerRating, auth, rating);
+                
+                new Float:stats[3];
+                stats = GpSkill_FetchPlayerStats(auth);
+                SetTrieValue(hPlayerRating, auth, stats[0]);
+                SetTrieValue(hPlayerDeviation, auth, stats[1]);
+                SetTrieValue(hPlayerVolatility, auth, stats[2]);
             }
         }
     }
@@ -749,7 +767,7 @@ public Action:Timer_ReadyUp(Handle:timer)
     }
 
     new readyCount = CountReadyAndInGame();
-    if (readyCount == neededCount || g_justgo)
+    if (readyCount == neededCount)
     {
         if (g_matchState == MS_POST_MATCH)
         {
@@ -757,7 +775,6 @@ public Action:Timer_ReadyUp(Handle:timer)
         }
         else
         {
-            g_justgo = false;
             OnAllReady();
             return Plugin_Stop;
         }
@@ -982,6 +999,19 @@ public Action:Command_Unready(client, args)
             }
         }
     }
+
+    return Plugin_Handled;
+}
+
+public Action:Command_ShowRating(client, args)
+{
+    decl String:auth[STEAMID_LEN];
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
+    
+    new Float:stats[3];
+    stats = GpSkill_FetchPlayerStats(auth);
+    
+    PrintToChat(client, "GPSkill Rating: %.02f", stats[0]);
 
     return Plugin_Handled;
 }
@@ -1396,8 +1426,8 @@ ChooseCaptains()
 
     if (count < 2)
     {
-        PrintToChatAll("[GP] Not enough valid captains. Scrambling teams.");
-        // TODO: If count < 2, just scramble teams
+        PrintToChatAll("[GP] Not enough valid captains.");
+        PostMatch(true, true);
         CloseHandle(menu);
         return;
     }
@@ -1748,6 +1778,10 @@ ClearTeams()
     SetTeamNames("", "");
     ClearArray(hTeam1);
     ClearArray(hTeam2);
+    if (hTeam1Snapshot != INVALID_HANDLE)
+        CloseHandle(hTeam1Snapshot);
+    if (hTeam2Snapshot != INVALID_HANDLE)
+        CloseHandle(hTeam2Snapshot);
 }
 
 
@@ -2173,6 +2207,13 @@ StartLiveMatch()
     g_period = 1;
     ServerCommand("mp_warmup_end\n");
     ServerCommand("exec goonpug_pug.cfg\n");
+    
+    if (GpSkill_Enabled())
+    {
+        hTeam1Snapshot = CloneHandle(hTeam1);
+        hTeam2Snapshot = CloneHandle(hTeam2);
+    }
+    
     PrintToChatAll("[GP] Live after restart!!!");
     ServerCommand("mp_restartgame 10\n");
     CreateTimer(11.0, Timer_Lo3);
@@ -2257,6 +2298,35 @@ PostMatch(bool:abort=false, bool:samemap=false)
     else
     {
         LogToGame("GoonPUG triggered \"End_Match\"");
+        
+        // run gpskill update
+        if (GpSkill_Enabled())
+        {
+            int winner = 0; //0=draw, 1=team1, 2=team2
+            int team1Score = 0;
+            int team2Score = 0;
+            if (g_period % 2)
+            {
+                team1Score = GetTeamScore(CS_TEAM_CT);
+                team2Score = GetTeamScore(CS_TEAM_T);
+            }
+            else
+            {
+                team1Score = GetTeamScore(CS_TEAM_T);
+                team2Score = GetTeamScore(CS_TEAM_CT);
+            }
+            
+            if (team1Score > team2Score)
+            {
+                winner = 1;
+            }
+            else if (team2Score > team1Score)
+            {
+                winner = 2;
+            }
+            
+            GpSkill_RunGlickoTwo(hTeam1Snapshot, hTeam2Snapshot, winner);
+        }
     }
 
     // Set the nextmap to a warmup map
@@ -2371,8 +2441,7 @@ public VoteHandler_OvertimeVote(Handle:menu, num_votes, num_clients, const clien
 
 public Action:Command_JustGo(client, args)
 {
-    g_justgo = true;
-
+    StartLiveMatch();
     return Plugin_Handled;
 }
 

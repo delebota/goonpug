@@ -23,18 +23,15 @@ After all players have readied up, the following steps will occur:
 Requirements
 ------------
 
-- [SourceMod 1.8](http://www.sourcemod.net) - Either an official release build or a stable branch snapshot should work
-
-Please note that the plugin has only been tested on Linux dedicated servers.
-In theory everything should also work on Windows servers, but there are no guarantees.
+- [MetaMod: Source 1.10.6](http://www.metamodsource.net/)
+- [SourceMod 1.8](http://www.sourcemod.net/downloads.php)
 
 
 Plugin Installation
 -------------------
 
-1.  Install SourceMod.
-    SourcePawn include files and Linux binaries for the required extensions are already included with GoonPUG.
-    If you are running a windows server you will need to install the extension .dll's on your own.
+1.  Install MetaMod and SourceMod.
+    Download links are in the above requirements section.
 2.  Extract the contents of the `goonpug_<version>.zip` file into your csgo server folder.
     Everything is properly organized underneath the standard `csgo/` directory.
 3.  Install the plugin.
@@ -69,11 +66,12 @@ The proper .bsp filename will be fetched via the Steam Workshop API.
 Plugin Cvars
 ------------
 
-GoonPUG cvars can be set or overridden in your `sourcemod.cfg` file.
+GoonPUG cvars can be set or overridden in your `csgo/cfg/sourcemod/sourcemod.cfg` file.
 
--   `gp_skill_enabled` specifies whether or not the plugin should use the goonpug stats. Defaults to `0`.
--	`gp_restrict_captains_limit` restricts the number of potential captains to the top N players. Defaults to `0`.
--	`gp_enforce_rates` enforces client rate cvars. Defaults to `0`.
+-   `gp_skill_enabled` specifies whether or not the plugin should use GPSkill. Defaults to `1`.
+-   `gp_skill_display_postmatch` specifies whether or not to show players their new GPSkill ratting after each match. Defaults to `1`.
+-   `gp_restrict_captains_limit` restricts the number of potential captains to the top N players. Defaults to `5`.
+-   `gp_enforce_rates` enforces client rate cvars. Defaults to `0`.
 
 
 Server configs
@@ -97,6 +95,8 @@ For example, to ready up a player could say any one of `.ready`, `!ready` or `/r
 -   `.ready` Set yourself as ready.
 -   `.notready` Set yourself as not ready.
 -   `.unready` Alias for `.notready`.
+
+-   `.rating` Shows your current GPSkill Rating.
 
 
 Admin Commands
