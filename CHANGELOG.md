@@ -1,7 +1,5 @@
 # GoonPUG Changelog
 
-----
-
 ## GoonPUG 2.0
 * Removed web integrations and other extensions to make plugin leaner. (Thanks to Talljoe)
 * Updated to MetaMod 1.10.6 and SourceMod 1.8 (Thanks to Talljoe)
