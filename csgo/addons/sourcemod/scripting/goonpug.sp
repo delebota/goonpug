@@ -1393,6 +1393,7 @@ ChooseCaptains()
 
     new count = 0;
     new i = 0;
+    
     new maxCaptains = GetConVarInt(hRestrictCaptainsLimit);
     if (maxCaptains < 2 || !GpSkill_Enabled())
         maxCaptains = 10;
@@ -2264,10 +2265,10 @@ public Action:Event_AnnouncePhaseEnd(Handle:event, const String:name[], bool:don
     }
     else if ((g_period % 2) == 0 && (GetTeamScore(CS_TEAM_CT) == GetTeamScore(CS_TEAM_T)))
     {
-        new Handle:otEnabled = FindConVar("mp_overtime_enable");
-        new ot = GetConVarInt(otEnabled);
-        if (ot != 0)
-            StartOvertimeVote();
+        //new Handle:otEnabled = FindConVar("mp_overtime_enable");
+        //new ot = GetConVarInt(otEnabled);
+        //if (ot != 0)
+        //    StartOvertimeVote();
     }
     else
     {
@@ -2437,12 +2438,6 @@ public VoteHandler_OvertimeVote(Handle:menu, num_votes, num_clients, const clien
         PrintToChatAll("[GP] Match ended.");
         PostMatch();
     }
-}
-
-public Action:Command_JustGo(client, args)
-{
-    StartLiveMatch();
-    return Plugin_Handled;
 }
 
 public Action:Command_Lo3(client, args)

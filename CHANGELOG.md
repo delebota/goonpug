@@ -1,6 +1,12 @@
 # GoonPUG Changelog
 
-## GoonPUG 2.0
+## GoonPUG 2.0.1
+* Updated match settings config files.
+* Added Deagle7k, Goonball, and Nuketown to idle maplist.
+* Disabled OT as it can break the plugin.
+* Various bugfixes.
+
+## GoonPUG 2.0.0
 * Removed web integrations and other extensions to make plugin leaner. (Thanks to Talljoe)
 * Updated to MetaMod 1.10.6 and SourceMod 1.8 (Thanks to Talljoe)
 * GPSkill integrated into plugin.

@@ -343,21 +343,25 @@ GpSkill_CalculateGlicko(const String:auth[], Float:playerStats[3], Float:oppTeam
     // update DB values
     GpSkill_UpdatePlayerStats(auth, ((newPlayerMu * glicko_two_constant) + 1500), (newPlayerPhi * glicko_two_constant), newPlayerSigma);
     
-    // print new rating to user
+    // print new rating and change to user
     if (GpSkill_Show_Rating())
     {
         new client = FindClientByAuthString(auth);
-        
-        decl String:msg[256];
-        Format(msg, sizeof(msg), "New GPSkill Rating: %.02f (", ((newPlayerMu * glicko_two_constant) + 1500));
-        if (newPlayerMu > 0.0)
-            StrCat(msg, sizeof(msg), "\x04+");
-        else
-            StrCat(msg, sizeof(msg), "\x02");
-        
-        StrCat(msg, sizeof(msg), "%.02f\x01)");
-        Format(msg, sizeof(msg), msg, (newPlayerMu * glicko_two_constant));
-        PrintToChat(client, msg);
+        if (client > 0 && IsClientConnected(client) && IsClientInGame(client) && !IsClientSourceTV(client) && !IsFakeClient(client))
+        {
+            decl String:msg[256];
+            Format(msg, sizeof(msg), "New GPSkill Rating: %.02f (", ((newPlayerMu * glicko_two_constant) + 1500));
+            
+            float difference = (newPlayerMu - playerMu);
+            if (difference > 0.0)
+                StrCat(msg, sizeof(msg), "\x04+");
+            else
+                StrCat(msg, sizeof(msg), "\x02");
+            
+            StrCat(msg, sizeof(msg), "%.02f\x01)");
+            Format(msg, sizeof(msg), msg, (difference * glicko_two_constant));
+            PrintToChat(client, msg);
+        }
     }
 }
 
