@@ -14,30 +14,24 @@ After all players have readied up, the following steps will occur:
 1. Vote for the map to play.
 2. Vote for team captains.
 3. Pick teams.
-4. Switch to the match map
-5. Wait for all players to load the map and ready up
-6. Live on 3
-7. Play match
-8. Switch back to an aim/dm map and idle
+4. Switch to the match map.
+5. Wait for all players to load the map and ready up.
+6. Play match.
+7. Switch back to an aim/dm map and return to idle mode.
 
 
 Requirements
 ------------
 
-- [SourceMod 1.8](http://www.sourcemod.net) - Either an official release build or a stable branch snapshot should work
-- [SM cURL](http://forums.alliedmods.net/showthread.php?t=152216)
-- [SMJansson](http://forums.alliedmods.net/showthread.php?t=184604)
-
-Please note that the plugin has only been tested on Linux dedicated servers.
-In theory everything should also work on Windows servers, but there are no guarantees.
+- [MetaMod: Source 1.10.6](http://www.metamodsource.net/)
+- [SourceMod 1.8](http://www.sourcemod.net/downloads.php)
 
 
 Plugin Installation
 -------------------
 
-1.  Install SourceMod.
-    SourcePawn include files and Linux binaries for the required extensions are already included with GoonPUG.
-    If you are running a windows server you will need to install the extension .dll's on your own.
+1.  Install MetaMod and SourceMod.
+    Download links are in the above requirements section.
 2.  Extract the contents of the `goonpug_<version>.zip` file into your csgo server folder.
     Everything is properly organized underneath the standard `csgo/` directory.
 3.  Install the plugin.
@@ -72,10 +66,13 @@ The proper .bsp filename will be fetched via the Steam Workshop API.
 Plugin Cvars
 ------------
 
-GoonPUG cvars can be set or overridden in your `sourcemod.cfg` file.
+GoonPUG cvars can be set or overridden in your `csgo/cfg/sourcemod/sourcemod.cfg` file.
 
--   `gp_skill_enabled` specifies whether or not the plugin should use the goonpug stats.
-    Defaults to `"0"`.
+-   `gp_skill_enabled` specifies whether or not the plugin should use GPSkill. Defaults to `1`.
+-   `gp_skill_display_postmatch` specifies whether or not to show players their new GPSkill ratting after each match. Defaults to `1`.
+-   `gp_restrict_captains_limit` restricts the number of potential captains to the top N players. Defaults to `5`.
+-   `gp_enforce_rates` enforces client rate cvars. Defaults to `0`.
+
 
 Server configs
 --------------
@@ -99,6 +96,8 @@ For example, to ready up a player could say any one of `.ready`, `!ready` or `/r
 -   `.notready` Set yourself as not ready.
 -   `.unready` Alias for `.notready`.
 
+-   `.rating` Shows your current GPSkill Rating.
+
 
 Admin Commands
 --------------
@@ -107,19 +106,13 @@ All admin commands require the SM `ADMIN_CHANGEMAP` privilege.
 Admin commands can be prefixed with `!` or `/` in chat, or with `sm_` in the console.
 Currently, the plugin admin commands do not appear in the `sm_admin` menu.
 
--   `/lo3` Start a match with the current teams and on the current map.
--   `/endmatch` End the current match.
+-   `sm_lo3` Start a match with the current teams and on the current map.
+-   `sm_endmatch` End the current match.
     Match results and stats will be saved to the GoonPUG server and the GO:TV demo will be saved.
--   `/abortmatch` Abort the current match.
+-   `sm_abortmatch` Abort the current match.
     Match results and stats will not be saved and the GO:TV demo will be discarded.
--   `/restartmatch` Restart the current match.
+-   `sm_restartmatch` Restart the current match.
     Note that if the match is in the second half, the plugin will swap the teams back to the sides they originally started on.
-
-
-Stats
------
-
-The GoonPUG plugin can optionally sync players' statistics (including RWS) with the goonpug-web backend.
 
 
 Notes

@@ -8,3 +8,4 @@ de_season
 de_overpass
 de_cbble
 workshop/266988442/de_calr_mill
+workshop/401145257/de_fire
