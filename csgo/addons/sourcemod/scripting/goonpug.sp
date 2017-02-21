@@ -104,6 +104,8 @@ new g_period = 0;
 new Handle:hTeamPickMenu = INVALID_HANDLE;
 new g_whosePick = 0;
 
+new Handle:hSkiphalfTimeReadyUp = INVALID_HANDLE;
+
 // demo stuff
 new bool:g_recording = false;
 new String:g_demoname[PLATFORM_MAX_PATH];
@@ -152,13 +154,15 @@ public OnPluginStart()
             "Enforces client rate cvars",
             FCVAR_SPONLY);
 
+    hSkiphalfTimeReadyUp = CreateConVar("gp_skip_halftime_readyup", "0", "Skips the wait for players to ready up during halftime", FCVAR_SPONLY);
+
     // Register commands
     hDotCmds = CreateArray(MAX_CMD_LEN);
     RegDotCmd("ready", Command_Ready, "Set yourself as ready.");
     RegDotCmd("unready", Command_Unready, "Set yourself as not ready.");
     RegDotCmd("notready", Command_Unready, "Set yourself as not ready.");
     RegDotCmd("rating", Command_ShowRating, "Show your GPSkill Rating.");
-    
+
     RegAdminCmd("sm_lo3", Command_Lo3, ADMFLAG_CHANGEMAP,
                 "Start a live match with the current teams.");
     RegAdminCmd("sm_abortmatch", Command_AbortMatch, ADMFLAG_CHANGEMAP,
@@ -491,7 +495,7 @@ public OnMapStart()
             {
                 decl String:auth[STEAMID_LEN];
                 GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
-                
+
                 new Float:stats[3];
                 stats = GpSkill_FetchPlayerStats(auth);
                 SetTrieValue(hPlayerRating, auth, stats[0]);
@@ -1007,10 +1011,10 @@ public Action:Command_ShowRating(client, args)
 {
     decl String:auth[STEAMID_LEN];
     GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
-    
+
     new Float:stats[3];
     stats = GpSkill_FetchPlayerStats(auth);
-    
+
     PrintToChat(client, "GPSkill Rating: %.02f", stats[0]);
 
     return Plugin_Handled;
@@ -1268,7 +1272,7 @@ public VoteHandler_MapVote(Handle:menu, num_votes, num_clients, const client_inf
 {
     new Float:winningvotes = float(item_info[0][VOTEINFO_ITEM_VOTES]);
     new Float:required = float(num_votes) * 0.5;
-    
+
     if (winningvotes < required)
     {
         /* runoff map vote */
@@ -1393,7 +1397,7 @@ ChooseCaptains()
 
     new count = 0;
     new i = 0;
-    
+
     new maxCaptains = GetConVarInt(hRestrictCaptainsLimit);
     if (maxCaptains < 2 || !GpSkill_Enabled())
         maxCaptains = 10;
@@ -2208,13 +2212,13 @@ StartLiveMatch()
     g_period = 1;
     ServerCommand("mp_warmup_end\n");
     ServerCommand("exec goonpug_pug.cfg\n");
-    
+
     if (GpSkill_Enabled())
     {
         hTeam1Snapshot = CloneHandle(hTeam1);
         hTeam2Snapshot = CloneHandle(hTeam2);
     }
-    
+
     PrintToChatAll("[GP] Live after restart!!!");
     ServerCommand("mp_restartgame 10\n");
     CreateTimer(11.0, Timer_Lo3);
@@ -2257,11 +2261,19 @@ public Action:Event_AnnouncePhaseEnd(Handle:event, const String:name[], bool:don
 {
     if (g_period == 1)
     {
-        PrintToChatAll("[GP] Halftime. Will resume match when all players are ready.");
         ChangeMatchState(MS_HALFTIME);
 
         ClearTrie(hSaveCash);
-        StartReadyUp(true);
+        new skipHalftimeReadyUp = GetConVarInt(hSkiphalfTimeReadyUp);
+        if (skipHalftimeReadyUp != 0)
+        {
+            OnAllReady();
+        }
+        else
+        {
+            PrintToChatAll("[GP] Halftime. Will resume match when all players are ready.");
+            StartReadyUp(true);
+        }
     }
     else if ((g_period % 2) == 0 && (GetTeamScore(CS_TEAM_CT) == GetTeamScore(CS_TEAM_T)))
     {
@@ -2299,7 +2311,7 @@ PostMatch(bool:abort=false, bool:samemap=false)
     else
     {
         LogToGame("GoonPUG triggered \"End_Match\"");
-        
+
         // run gpskill update
         if (GpSkill_Enabled())
         {
@@ -2316,7 +2328,7 @@ PostMatch(bool:abort=false, bool:samemap=false)
                 team1Score = GetTeamScore(CS_TEAM_T);
                 team2Score = GetTeamScore(CS_TEAM_CT);
             }
-            
+
             if (team1Score > team2Score)
             {
                 winner = 1;
@@ -2325,7 +2337,7 @@ PostMatch(bool:abort=false, bool:samemap=false)
             {
                 winner = 2;
             }
-            
+
             GpSkill_RunGlickoTwo(hTeam1Snapshot, hTeam2Snapshot, winner);
         }
     }
@@ -2420,7 +2432,7 @@ public VoteHandler_OvertimeVote(Handle:menu, num_votes, num_clients, const clien
     new Float:required = float(num_votes) * 0.5;
     decl String:result[8];
     GetMenuItem(menu, item_info[0][VOTEINFO_ITEM_INDEX], result, sizeof(result));
-    
+
     if (StrEqual(result, "Yes") && winningvotes > required)
     {
         PrintToChatAll("[GP] Vote to play OT wins (%0.f%%).", (winningvotes / float(num_votes) * 100.0));
