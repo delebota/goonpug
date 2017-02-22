@@ -1,5 +1,11 @@
 # GoonPUG Changelog
 
+## GoonPUG 2.0.2
+* Ratings are displayed as integers, but still tracked as floats.
+* Post-match rating changes are now displayed in a dismissable menu.
+* Add player disconnect logic to MS_MAP_VOTE state.
+* Various bugfixes.
+
 ## GoonPUG 2.0.1
 * Updated match settings config files.
 * Added Deagle7k, Goonball, and Nuketown to idle maplist.
