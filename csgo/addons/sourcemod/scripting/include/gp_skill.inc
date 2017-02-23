@@ -40,6 +40,36 @@ GpSkill_Init()
     defaultStats[0] = 1500.00; // default rating
     defaultStats[1] = 350.00;  // default deviation
     defaultStats[2] = 0.0600;  // default volatility
+    
+    decl String:error[256];
+    if (GpSkill_Enabled())
+    {
+        if (hGpSkillConn == INVALID_HANDLE)
+        {
+            hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
+            if (hGpSkillConn == INVALID_HANDLE)
+            {
+                LogError("Could not connect to gpskill db: %s", error);
+            }
+        }
+        
+        decl String:query[256];
+        Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS gpskill (steam_id VARCHAR (32) NOT NULL PRIMARY KEY, rating REAL NOT NULL DEFAULT (1500), deviation REAL NOT NULL DEFAULT (350), volatility REAL NOT NULL DEFAULT (0.06));");
+        new Handle:hResult = SQL_Query(hGpSkillConn, query);
+        if (INVALID_HANDLE == hResult)
+        {
+            if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
+            {
+                LogError("Could not create gpskill table: %s", error);
+            }
+            else
+            {
+                LogError("Could not create gpskill table.");
+            }
+        }
+        
+        CloseHandle(hResult);
+    }
 }
 
 GpSkill_Fini()
@@ -78,7 +108,7 @@ bool:GpSkill_Show_Rating()
 
 Float:GpSkill_FetchPlayerStats(const String:auth[])
 {
-    decl String:error[512];
+    decl String:error[256];
     if (GpSkill_Enabled())
     {
         if (hGpSkillConn == INVALID_HANDLE)

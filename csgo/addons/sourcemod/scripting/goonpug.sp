@@ -1575,8 +1575,8 @@ DetermineFirstPick()
             }
         }
 
-        PrintToChatAll("[GP] %s's GP Skill: %.2f", g_capt1, capt1rating);
-        PrintToChatAll("[GP] %s's GP Skill: %.2f", g_capt2, capt2rating);
+        PrintToChatAll("[GP] %s's GP Skill: %.0f", g_capt1, capt1rating);
+        PrintToChatAll("[GP] %s's GP Skill: %.0f", g_capt2, capt2rating);
 
         if (capt1rating > capt2rating)
         {
@@ -1915,7 +1915,7 @@ Handle:BuildPickMenu(pickNum)
             decl Float:rating;
             if (!GetTrieValue(hPlayerRating, auth, rating))
                 rating = 0.0;
-            Format(display, sizeof(display), "(%.2f) %s", rating, name);
+            Format(display, sizeof(display), "(%.0f) %s", rating, name);
         }
         else
         {
