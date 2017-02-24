@@ -44,7 +44,7 @@
 #include <gp_team>
 #include <gp_skill>
 
-#define GOONPUG_VERSION "2.0-beta"
+#define GOONPUG_VERSION "2.0.2"
 #define MAX_ROUNDS 128
 #define MAX_CMD_LEN 32
 #define STEAMID_LEN 32
@@ -1014,8 +1014,8 @@ public Action:Command_ShowRating(client, args)
 
     new Float:stats[3];
     stats = GpSkill_FetchPlayerStats(auth);
-
-    PrintToChat(client, "GPSkill Rating: %.02f", stats[0]);
+    
+    PrintToChat(client, "GPSkill Rating: %.0f", stats[0]);
 
     return Plugin_Handled;
 }
@@ -1061,12 +1061,12 @@ public Action:Event_PlayerDisconnect(
 
     switch (g_matchState)
     {
-        case MS_PICK_CAPTAINS, MS_PICK_TEAMS:
+        case MS_MAP_VOTE, MS_PICK_CAPTAINS, MS_PICK_TEAMS:
         {
             if (ClientIsReady(client))
             {
                 ChangeMatchState(MS_WARMUP);
-                PrintToChatAll("[GP] Aborting match setup due to player diconnection...");
+                PrintToChatAll("[GP] Aborting match setup due to player disconnection...");
                 if (IsVoteInProgress())
                     CancelVote();
                 UnReadyClient(client);
@@ -1417,7 +1417,7 @@ ChooseCaptains()
             {
                 decl Float:rating;
                 GetTrieValue(hPlayerRating, auth, rating);
-                Format(display, sizeof(display), "(%.2f) %s", rating, name);
+                Format(display, sizeof(display), "(%.0f) %s", rating, name);
             }
             else
             {
@@ -1579,8 +1579,8 @@ DetermineFirstPick()
             }
         }
 
-        PrintToChatAll("[GP] %s's GP Skill: %.2f", g_capt1, capt1rating);
-        PrintToChatAll("[GP] %s's GP Skill: %.2f", g_capt2, capt2rating);
+        PrintToChatAll("[GP] %s's GP Skill: %.0f", g_capt1, capt1rating);
+        PrintToChatAll("[GP] %s's GP Skill: %.0f", g_capt2, capt2rating);
 
         if (capt1rating > capt2rating)
         {
@@ -1783,10 +1783,6 @@ ClearTeams()
     SetTeamNames("", "");
     ClearArray(hTeam1);
     ClearArray(hTeam2);
-    if (hTeam1Snapshot != INVALID_HANDLE)
-        CloseHandle(hTeam1Snapshot);
-    if (hTeam2Snapshot != INVALID_HANDLE)
-        CloseHandle(hTeam2Snapshot);
 }
 
 
@@ -1900,7 +1896,7 @@ public Action:Timer_PickTeams(Handle:timer)
 Handle:BuildPickMenu(pickNum)
 {
     new Handle:menu = CreateMenu(Menu_PickPlayer);
-    if (GetArraySize(hSortedClients) != g_maxPlayers - 2 - (pickNum + 1))
+    if (GetArraySize(hSortedClients) != g_maxPlayers - (pickNum + 1))
     {
         LogError("Invalid pick array size. Captains = %d, %d", g_captClients[0], g_captClients[1]);
         LogError("Dumping pick list:");
@@ -1923,7 +1919,7 @@ Handle:BuildPickMenu(pickNum)
             decl Float:rating;
             if (!GetTrieValue(hPlayerRating, auth, rating))
                 rating = 0.0;
-            Format(display, sizeof(display), "(%.2f) %s", rating, name);
+            Format(display, sizeof(display), "(%.0f) %s", rating, name);
         }
         else
         {

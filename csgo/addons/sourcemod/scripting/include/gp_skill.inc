@@ -40,6 +40,36 @@ GpSkill_Init()
     defaultStats[0] = 1500.00; // default rating
     defaultStats[1] = 350.00;  // default deviation
     defaultStats[2] = 0.0600;  // default volatility
+    
+    decl String:error[256];
+    if (GpSkill_Enabled())
+    {
+        if (hGpSkillConn == INVALID_HANDLE)
+        {
+            hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
+            if (hGpSkillConn == INVALID_HANDLE)
+            {
+                LogError("Could not connect to gpskill db: %s", error);
+            }
+        }
+        
+        decl String:query[256];
+        Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS gpskill (steam_id VARCHAR (32) NOT NULL PRIMARY KEY, rating REAL NOT NULL DEFAULT (1500), deviation REAL NOT NULL DEFAULT (350), volatility REAL NOT NULL DEFAULT (0.06));");
+        new Handle:hResult = SQL_Query(hGpSkillConn, query);
+        if (INVALID_HANDLE == hResult)
+        {
+            if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
+            {
+                LogError("Could not create gpskill table: %s", error);
+            }
+            else
+            {
+                LogError("Could not create gpskill table.");
+            }
+        }
+        
+        CloseHandle(hResult);
+    }
 }
 
 GpSkill_Fini()
@@ -78,7 +108,7 @@ bool:GpSkill_Show_Rating()
 
 Float:GpSkill_FetchPlayerStats(const String:auth[])
 {
-    decl String:error[512];
+    decl String:error[256];
     if (GpSkill_Enabled())
     {
         if (hGpSkillConn == INVALID_HANDLE)
@@ -349,18 +379,21 @@ GpSkill_CalculateGlicko(const String:auth[], Float:playerStats[3], Float:oppTeam
         new client = FindClientByAuthString(auth);
         if (client > 0 && IsClientConnected(client) && IsClientInGame(client) && !IsClientSourceTV(client) && !IsFakeClient(client))
         {
-            decl String:msg[256];
-            Format(msg, sizeof(msg), "New GPSkill Rating: %.02f (", ((newPlayerMu * glicko_two_constant) + 1500));
+            decl String:msg[64];
+            Format(msg, sizeof(msg), "New GPSkill Rating: %.0f (", ((newPlayerMu * glicko_two_constant) + 1500));
             
             float difference = (newPlayerMu - playerMu);
             if (difference > 0.0)
-                StrCat(msg, sizeof(msg), "\x04+");
-            else
-                StrCat(msg, sizeof(msg), "\x02");
-            
-            StrCat(msg, sizeof(msg), "%.02f\x01)");
+                StrCat(msg, sizeof(msg), "+");
+                
+            StrCat(msg, sizeof(msg), "%.0f)");
             Format(msg, sizeof(msg), msg, (difference * glicko_two_constant));
-            PrintToChat(client, msg);
+            
+            Menu menu = new Menu(GPSkillChangeDisplay);
+            menu.SetTitle(msg);
+            menu.AddItem("Dismiss", "Dismiss");
+            menu.ExitButton = false;
+            menu.Display(client, 30);
         }
     }
 }
@@ -369,4 +402,25 @@ Float:GpSkill_IllinoisAlgorithm(float x, float delta, float phi, float v, float 
 {
     float result = Float:Exponential(x) * ((delta * delta) - (phi * phi) - v - Float:Exponential(x)) / (2.0 * Float:Pow((phi * phi) + v + Float:Exponential(x), 2.0)) - ((x - a) / (tau * tau));
     return result;
+}
+
+public int GPSkillChangeDisplay(Menu menu, MenuAction action, int param1, int param2)
+{
+	/* If an option was selected, tell the client about the item. */
+	if (action == MenuAction_Select)
+	{
+		//char info[32];
+		//bool found = menu.GetItem(param2, info, sizeof(info));
+		//PrintToConsole(param1, "You selected item: %d (found? %d info: %s)", param2, found, info);
+	}
+	/* If the menu was cancelled, print a message to the server about it. */
+	else if (action == MenuAction_Cancel)
+	{
+		PrintToServer("Client %d's menu was cancelled.  Reason: %d", param1, param2);
+	}
+	/* If the menu has ended, destroy it */
+	else if (action == MenuAction_End)
+	{
+		delete menu;
+	}
 }
