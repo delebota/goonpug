@@ -72,6 +72,7 @@ GoonPUG cvars can be set or overridden in your `csgo/cfg/sourcemod/sourcemod.cfg
 -   `gp_skill_display_postmatch` specifies whether or not to show players their new GPSkill ratting after each match. Defaults to `1`.
 -   `gp_restrict_captains_limit` restricts the number of potential captains to the top N players. Defaults to `5`.
 -   `gp_enforce_rates` enforces client rate cvars. Defaults to `0`.
+-   `gp_ot_vote_unanimous` determines if everyone must agree to overtime. Defaults to `0` (51% of vote required).
 
 
 Server configs
@@ -113,6 +114,22 @@ Currently, the plugin admin commands do not appear in the `sm_admin` menu.
     Match results and stats will not be saved and the GO:TV demo will be discarded.
 -   `sm_restartmatch` Restart the current match.
     Note that if the match is in the second half, the plugin will swap the teams back to the sides they originally started on.
+
+
+Display GPSkill Online
+----------------------
+
+GPSkill stats are stored in an SQLite database located at /csgo/addons/sourcemod/data/sqlite/gpskill.sq3
+
+The table name is also gpskill and can be queried for steam id, rating, deviation, and volatility. 
+In order to fetch information about the player, such as current username or profile links use the [Steam API](https://developer.valvesoftware.com/wiki/Steam_Web_API).
+
+Current DB Structure:
+
+- steam_id    VARCHAR (32) NOT NULL PRIMARY KEY
+- rating      REAL         NOT NULL DEFAULT (1500)
+- deviation   REAL         NOT NULL DEFAULT (350)
+- volatility  REAL         NOT NULL DEFAULT (0.06)
 
 
 Notes

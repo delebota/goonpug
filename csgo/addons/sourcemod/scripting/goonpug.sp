@@ -44,12 +44,10 @@
 #include <gp_team>
 #include <gp_skill>
 
-#define GOONPUG_VERSION "2.0.2"
-#define MAX_ROUNDS 128
+#define GOONPUG_VERSION "2.0.3"
 #define MAX_CMD_LEN 32
 #define STEAMID_LEN 32
 #define MAX_MAPNAME_LEN PLATFORM_MAX_PATH
-#define CURL_BUFSIZE 4096
 
 enum MatchState
 {
@@ -121,8 +119,7 @@ new Handle:hEnforceRates = INVALID_HANDLE;
 #define MIN_UPDATERATE 128
 #define WARN_INTERP_RATIO 1.0
 
-new Handle:hTeam1Snapshot = INVALID_HANDLE;
-new Handle:hTeam2Snapshot = INVALID_HANDLE;
+new Handle:hOvertimeUnanimous = INVALID_HANDLE;
 
 /**
  * Public plugin info
@@ -151,6 +148,10 @@ public OnPluginStart()
     hEnforceRates = CreateConVar("gp_enforce_rates", "0",
             "Enforces client rate cvars",
             FCVAR_SPONLY);
+            
+    hOvertimeUnanimous = CreateConVar("gp_ot_vote_unanimous", "0",
+            "Determines if everyone must agree to overtime",
+            FCVAR_SPONLY);
 
     // Register commands
     hDotCmds = CreateArray(MAX_CMD_LEN);
@@ -177,8 +178,8 @@ public OnPluginStart()
     // Hook events
     HookEvent("announce_phase_end", Event_AnnouncePhaseEnd);
     HookEvent("cs_win_panel_match", Event_CsWinPanelMatch);
+    HookEvent("player_activate", Event_PlayerActivate);
     HookEvent("player_disconnect", Event_PlayerDisconnect);
-    HookEvent("player_team", Event_PlayerTeam);
 
     hSaveCash = CreateTrie();
     hSaveKills = CreateTrie();
@@ -237,6 +238,10 @@ public OnPluginEnd()
         CloseHandle(hSaveMvps);
     if (hRestrictCaptainsLimit != INVALID_HANDLE)
         CloseHandle(hRestrictCaptainsLimit);
+    if (hEnforceRates != INVALID_HANDLE)
+        CloseHandle(hEnforceRates);
+    if (hOvertimeUnanimous != INVALID_HANDLE)
+        CloseHandle(hOvertimeUnanimous);
     if (hPlayerReadyArray != INVALID_HANDLE)
         CloseHandle(hPlayerReadyArray);
     if (hPlayerWaitingAuthArray != INVALID_HANDLE)
@@ -245,10 +250,6 @@ public OnPluginEnd()
         CloseHandle(hPlayerWaitingNameArray);
     if (hPlayerDisconnectTimersTrie != INVALID_HANDLE)
         CloseHandle(hPlayerDisconnectTimersTrie);
-    if (hTeam1Snapshot != INVALID_HANDLE)
-        CloseHandle(hTeam1Snapshot);
-    if (hTeam2Snapshot != INVALID_HANDLE)
-        CloseHandle(hTeam2Snapshot);
 
     GpSkill_Fini();
     GpTeam_Fini();
@@ -1031,6 +1032,49 @@ public Action:Timer_UnreadyPlayer(Handle:timer, Handle:pack)
 }
 
 /**
+ * Handle player activate
+ */
+public Action:Event_PlayerActivate(
+    Handle:event,
+    const String:name[],
+    bool:dontBroadcast)
+{
+    new userid = GetEventInt(event, "userid");
+    new client = GetClientOfUserId(userid);
+
+    if (client < 1 || IsFakeClient(client))
+    {
+        return Plugin_Continue;
+    }
+    
+    decl String:auth[STEAMID_LEN];
+    GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
+    new GpTeam:assignedTeam = GP_TEAM_NONE;
+    new index = FindStringInArray(hTeam1, auth);
+    if (index >= 0)
+    {
+        assignedTeam = GP_TEAM_1;
+    }
+    else
+    {
+        index = FindStringInArray(hTeam2, auth);
+        if (index >= 0)
+        {
+            assignedTeam = GP_TEAM_2;
+        }
+    }
+
+    // If player is assigned and match is live, force them to spectator to prevent suicide when joining during grace period
+    if (assignedTeam != GP_TEAM_NONE && (g_matchState == MS_LIVE || g_matchState == MS_HALFTIME || g_matchState == MS_OT))
+    {
+        ChangeClientTeam(client, CS_TEAM_SPECTATOR);
+        return Plugin_Handled;
+    }
+    
+    return Plugin_Continue;
+}
+
+/**
  * Handle player disconnections
  */
 public Action:Event_PlayerDisconnect(
@@ -1061,8 +1105,8 @@ public Action:Event_PlayerDisconnect(
         {
             if (ClientIsReady(client))
             {
-                ChangeMatchState(MS_WARMUP);
                 PrintToChatAll("[GP] Aborting match setup due to player disconnection...");
+                ChangeMatchState(MS_WARMUP);
                 if (IsVoteInProgress())
                     CancelVote();
                 UnReadyClient(client);
@@ -1104,30 +1148,6 @@ public Action:Event_PlayerDisconnect(
 
     new mvps = CS_GetMVPCount(client);
     SetTrieValue(hSaveMvps, auth, mvps);
-
-    return Plugin_Continue;
-}
-
-public Action:Event_PlayerTeam(
-    Handle:event,
-    const String:name[],
-    bool:dontBroadcast)
-{
-    new userid = GetEventInt(event, "userid");
-    new client = GetClientOfUserId(userid);
-    new oldteam = GetEventInt(event, "oldteam");
-    new team = GetEventInt(event, "team");
-
-    if (client < 1 || IsFakeClient(client))
-    {
-        return Plugin_Continue;
-    }
-
-    // Sanity check this because of auto-join timer stupidity
-    if (oldteam == CS_TEAM_NONE)
-    {
-        FakeClientCommandEx(client, "jointeam \"%d\"", team);
-    }
 
     return Plugin_Continue;
 }
@@ -1982,7 +2002,7 @@ public Action:Command_Jointeam(client, const String:command[], argc)
 
     decl String:auth[STEAMID_LEN];
     GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
-
+    
     // Always let players move to spec
     if (team == CS_TEAM_SPECTATOR)
     {
@@ -2204,13 +2224,6 @@ StartLiveMatch()
     g_period = 1;
     ServerCommand("mp_warmup_end\n");
     ServerCommand("exec goonpug_pug.cfg\n");
-    
-    if (GpSkill_Enabled())
-    {
-        hTeam1Snapshot = CloneHandle(hTeam1);
-        hTeam2Snapshot = CloneHandle(hTeam2);
-    }
-    
     PrintToChatAll("[GP] Live after restart!!!");
     ServerCommand("mp_restartgame 10\n");
     CreateTimer(11.0, Timer_Lo3);
@@ -2259,12 +2272,12 @@ public Action:Event_AnnouncePhaseEnd(Handle:event, const String:name[], bool:don
         ClearTrie(hSaveCash);
         StartReadyUp(true);
     }
-    else if ((g_period % 2) == 0 && (GetTeamScore(CS_TEAM_CT) == GetTeamScore(CS_TEAM_T)))
+    else if ((g_period >= 2) && (GetTeamScore(CS_TEAM_CT) == GetTeamScore(CS_TEAM_T)))
     {
-        //new Handle:otEnabled = FindConVar("mp_overtime_enable");
-        //new ot = GetConVarInt(otEnabled);
-        //if (ot != 0)
-        //    StartOvertimeVote();
+        new Handle:otEnabled = FindConVar("mp_overtime_enable");
+        new ot = GetConVarInt(otEnabled);
+        if (ot != 0)
+            StartOvertimeVote();
     }
     else
     {
@@ -2322,7 +2335,7 @@ PostMatch(bool:abort=false, bool:samemap=false)
                 winner = 2;
             }
             
-            GpSkill_RunGlickoTwo(hTeam1Snapshot, hTeam2Snapshot, winner);
+            GpSkill_RunGlickoTwo(hTeam1, hTeam2, winner);
         }
     }
 
@@ -2413,11 +2426,14 @@ public Menu_OvertimeVote(Handle:menu, MenuAction:action, param1, param2)
 public VoteHandler_OvertimeVote(Handle:menu, num_votes, num_clients, const client_info[][2], num_items, const item_info[][2])
 {
     new Float:winningvotes = float(item_info[0][VOTEINFO_ITEM_VOTES]);
-    new Float:required = float(num_votes) * 0.5;
     decl String:result[8];
     GetMenuItem(menu, item_info[0][VOTEINFO_ITEM_INDEX], result, sizeof(result));
     
-    if (StrEqual(result, "Yes") && winningvotes > required)
+    new Float:required = float(num_votes);
+    if (!OT_Vote_Unanimous)
+        required = float(num_votes) * 0.51;
+    
+    if (StrEqual(result, "Yes") && winningvotes >= required)
     {
         PrintToChatAll("[GP] Vote to play OT wins (%0.f%%).", (winningvotes / float(num_votes) * 100.0));
         ChangeMatchState(MS_OT);
@@ -2491,7 +2507,7 @@ public Action:Command_AbortMatch(client, args)
         }
         default:
         {
-            PrintToChatAll("[GP] You can't do that right now.");
+            PrintToConsole(client, "[GP] You can't do that right now.");
         }
     }
 
@@ -2514,7 +2530,7 @@ public Action:Command_RestartMatch(client, args)
         }
         default:
         {
-            PrintToChatAll("[GP] You can't do that right now.");
+            PrintToConsole(client, "[GP] You can't do that right now.");
         }
     }
 
@@ -2532,7 +2548,7 @@ public Action:Command_EndMatch(client, args)
         }
         default:
         {
-            PrintToChatAll("[GP] You can't do that right now.");
+            PrintToConsole(client, "[GP] You can't do that right now.");
         }
     }
 
@@ -2558,4 +2574,16 @@ SwapSides()
             }
         }
     }
+}
+
+bool:OT_Vote_Unanimous()
+{
+    if (hOvertimeUnanimous == INVALID_HANDLE)
+        return false;
+
+    new enabled = GetConVarInt(hOvertimeUnanimous);
+    if (0 == enabled)
+        return false;
+    else
+        return true;
 }

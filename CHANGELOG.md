@@ -1,5 +1,10 @@
 # GoonPUG Changelog
 
+## GoonPUG 2.0.3
+* If match is live, halftime, or overtime and an assigned player rejoins, force them into spectator on join to prevent suicide bug.
+* Fixed OT bug and re-enabled the OT vote system.
+* New cvar 'gp\_ot\_vote\_unanimous' to determine if OT must be agreed to by everyone. Defaults to '0' which is disabled (51% of vote required).
+
 ## GoonPUG 2.0.2
 * Ratings are displayed as integers, but still tracked as floats.
 * Post-match rating changes are now displayed in a dismissable menu.
