@@ -114,6 +114,8 @@ Currently, the plugin admin commands do not appear in the `sm_admin` menu.
     Match results and stats will not be saved and the GO:TV demo will be discarded.
 -   `sm_restartmatch` Restart the current match.
     Note that if the match is in the second half, the plugin will swap the teams back to the sides they originally started on.
+    
+For easy access these commands can be added to the Sourcemod admin menu. Copy the GoonPUG section from 'csgo/addons/sourcemod/configs/adminmenu_custom.txt.example' into your adminmenu_custom.txt file. If you don't have one you can just rename the example file to not have the .example at the end.
 
 
 Display GPSkill Online

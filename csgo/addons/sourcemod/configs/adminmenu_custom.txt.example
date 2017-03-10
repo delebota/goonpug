@@ -1,0 +1,33 @@
+"Commands"
+{
+	"GoonPUG"
+	{
+		"Live on 3"
+		{
+			"cmd"			"sm_lo3"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
+        
+        "Abort Match"
+		{
+			"cmd"			"sm_abortmatch"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
+        
+        "End Match"
+		{
+			"cmd"			"sm_endmatch"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
+        
+        "Restart Match"
+		{
+			"cmd"			"sm_restartmatch"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
+	}
+}

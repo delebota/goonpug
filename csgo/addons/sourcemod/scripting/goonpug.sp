@@ -44,7 +44,7 @@
 #include <gp_team>
 #include <gp_skill>
 
-#define GOONPUG_VERSION "2.0.3"
+#define GOONPUG_VERSION "2.0.4"
 #define MAX_CMD_LEN 32
 #define STEAMID_LEN 32
 #define MAX_MAPNAME_LEN PLATFORM_MAX_PATH

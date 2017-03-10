@@ -2,6 +2,7 @@
 
 ## GoonPUG 2.0.4
 * Added '.gpskill' command as an alias for '.rating'.
+* Added example file for how to add GoonPUG commands to Sourcemod Admin Menu.
 
 ## GoonPUG 2.0.3
 * If match is live, halftime, or overtime and an assigned player rejoins, force them into spectator on join to prevent suicide bug.
