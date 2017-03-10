@@ -97,7 +97,7 @@ For example, to ready up a player could say any one of `.ready`, `!ready` or `/r
 -   `.notready` Set yourself as not ready.
 -   `.unready` Alias for `.notready`.
 
--   `.rating` Shows your current GPSkill Rating.
+-   `.rating` or `.gpskill` Shows your current GPSkill Rating.
 
 
 Admin Commands

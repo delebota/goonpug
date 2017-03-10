@@ -159,6 +159,7 @@ public OnPluginStart()
     RegDotCmd("unready", Command_Unready, "Set yourself as not ready.");
     RegDotCmd("notready", Command_Unready, "Set yourself as not ready.");
     RegDotCmd("rating", Command_ShowRating, "Show your GPSkill Rating.");
+    RegDotCmd("gpskill", Command_ShowRating, "Show your GPSkill Rating.");
     
     RegAdminCmd("sm_lo3", Command_Lo3, ADMFLAG_CHANGEMAP,
                 "Start a live match with the current teams.");

@@ -1,5 +1,8 @@
 # GoonPUG Changelog
 
+## GoonPUG 2.0.4
+* Added '.gpskill' command as an alias for '.rating'.
+
 ## GoonPUG 2.0.3
 * If match is live, halftime, or overtime and an assigned player rejoins, force them into spectator on join to prevent suicide bug.
 * Fixed OT bug and re-enabled the OT vote system.
