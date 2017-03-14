@@ -9,9 +9,16 @@
 			"execute"		"player"
 		}
         
-        "Abort Match"
+        "Pause Match"
 		{
-			"cmd"			"sm_abortmatch"
+			"cmd"			"sm_rcon mp_pause_match 1"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
+        
+        "Unpause Match"
+		{
+			"cmd"			"sm_rcon mp_unpause_match 1"
 			"admin"			"sm_map"
 			"execute"		"player"
 		}
@@ -19,6 +26,13 @@
         "End Match"
 		{
 			"cmd"			"sm_endmatch"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
+        
+        "Abort Match"
+		{
+			"cmd"			"sm_abortmatch"
 			"admin"			"sm_map"
 			"execute"		"player"
 		}
