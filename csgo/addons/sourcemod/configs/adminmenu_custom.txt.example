@@ -43,5 +43,12 @@
 			"admin"			"sm_map"
 			"execute"		"player"
 		}
+        
+        "Reset Plugin"
+		{
+			"cmd"			"sm_rcon sm plugins reload goonpug"
+			"admin"			"sm_map"
+			"execute"		"player"
+		}
 	}
 }
