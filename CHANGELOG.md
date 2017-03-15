@@ -2,7 +2,8 @@
 
 ## GoonPUG 2.0.4
 * Added '.gpskill' command as an alias for '.rating'.
-* Added example file for how to add GoonPUG commands to Sourcemod Admin Menu.
+* Added example files for how to add GoonPUG commands to Sourcemod Admin Menu.
+* Remove de_fire from default match map list.
 
 ## GoonPUG 2.0.3
 * If match is live, halftime, or overtime and an assigned player rejoins, force them into spectator on join to prevent suicide bug.

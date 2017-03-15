@@ -1,0 +1,13 @@
+"Menu"
+{
+    "GoonPUG"
+	{
+		"item"		"Live on 3"
+		"item"		"Pause Match"
+		"item"		"Unpause Match"
+		"item"		"End Match"
+		"item"		"Abort Match"
+		"item"		"Restart Match"
+		"item"		"Reset Plugin"
+	}
+}
