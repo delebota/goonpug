@@ -7,4 +7,6 @@ de_cache
 de_season
 de_overpass
 de_cbble
+de_canals
 workshop/266988442/de_calr_mill
+workshop/322837144/de_season
