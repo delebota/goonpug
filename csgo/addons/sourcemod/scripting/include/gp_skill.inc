@@ -23,75 +23,74 @@
  * Author: Peter "astroman" Rowlands <peter@pmrowla.com>
  */
 
-new Handle:hGpSkillEnabled = INVALID_HANDLE;
+#include <gp_gaussian_functions>
+
+// Convars
 new Handle:hGpSkillShowRating = INVALID_HANDLE;
 new Handle:hGpSkillConn = INVALID_HANDLE;
 
+// Default stats
 new Float:defaultStats[3];
+new Float:defaultMean = 25.00;
+new Float:defaultStandardDeviation = 8.333;
+new Float:defaultConservativeRating = 0.00;
+new Float:defaultBeta = 4.1665;
+new Float:defaultDynamicsFactor = 0.08333;
+new Float:defaultDrawProbability = 0.10;
+
+new Float:conservativeRatingMultiplier = 3.00;
+
+// enums
+enum MatchOutcome
+{
+    LOSE = -1.0,
+    DRAW = 0.0,
+    WIN = 1.0,
+};
 
 GpSkill_Init()
 {
-    hGpSkillEnabled = CreateConVar("gp_skill_enabled", "1",
-            "Use GoonPUG skill ranking.", FCVAR_SPONLY);
-    
     hGpSkillShowRating = CreateConVar("gp_skill_display_postmatch", "1",
             "Show the user their new ranking after each match.", FCVAR_SPONLY);
             
-    defaultStats[0] = 1500.00; // default rating
-    defaultStats[1] = 350.00;  // default deviation
-    defaultStats[2] = 0.0600;  // default volatility
+    defaultStats[0] = defaultMean;
+    defaultStats[1] = defaultStandardDeviation;
+    defaultStats[2] = defaultConservativeRating;
     
     decl String:error[256];
-    if (GpSkill_Enabled())
+    if (hGpSkillConn == INVALID_HANDLE)
     {
+        hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
         if (hGpSkillConn == INVALID_HANDLE)
         {
-            hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
-            if (hGpSkillConn == INVALID_HANDLE)
-            {
-                LogError("Could not connect to gpskill db: %s", error);
-            }
+            LogError("Could not connect to gpskill db: %s", error);
         }
-        
-        decl String:query[256];
-        Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS gpskill (steam_id VARCHAR (32) NOT NULL PRIMARY KEY, rating REAL NOT NULL DEFAULT (1500), deviation REAL NOT NULL DEFAULT (350), volatility REAL NOT NULL DEFAULT (0.06));");
-        new Handle:hResult = SQL_Query(hGpSkillConn, query);
-        if (INVALID_HANDLE == hResult)
-        {
-            if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
-            {
-                LogError("Could not create gpskill table: %s", error);
-            }
-            else
-            {
-                LogError("Could not create gpskill table.");
-            }
-        }
-        
-        CloseHandle(hResult);
     }
+    
+    decl String:query[256];
+    Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS gpskill (steam_id VARCHAR (32) NOT NULL PRIMARY KEY, mean REAL NOT NULL DEFAULT (25.00), deviation REAL NOT NULL DEFAULT (8.333), conservativeRating REAL NOT NULL DEFAULT (0.00));");
+    new Handle:hResult = SQL_Query(hGpSkillConn, query);
+    if (hResult == INVALID_HANDLE)
+    {
+        if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
+        {
+            LogError("Could not create gpskill table: %s", error);
+        }
+        else
+        {
+            LogError("Could not create gpskill table.");
+        }
+    }
+    
+    CloseHandle(hResult);
 }
 
 GpSkill_Fini()
 {
-    if (hGpSkillEnabled != INVALID_HANDLE)
-        CloseHandle(hGpSkillEnabled);
     if (hGpSkillShowRating != INVALID_HANDLE)
         CloseHandle(hGpSkillShowRating);
     if (hGpSkillConn != INVALID_HANDLE)
         CloseHandle(hGpSkillConn);
-}
-
-bool:GpSkill_Enabled()
-{
-    if (hGpSkillEnabled == INVALID_HANDLE)
-        return false;
-
-    new enabled = GetConVarInt(hGpSkillEnabled);
-    if (0 == enabled)
-        return false;
-    else
-        return true;
 }
 
 bool:GpSkill_Show_Rating()
@@ -109,299 +108,257 @@ bool:GpSkill_Show_Rating()
 Float:GpSkill_FetchPlayerStats(const String:auth[])
 {
     decl String:error[256];
-    if (GpSkill_Enabled())
+    if (hGpSkillConn == INVALID_HANDLE)
     {
+        hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
         if (hGpSkillConn == INVALID_HANDLE)
         {
-            hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
-            if (hGpSkillConn == INVALID_HANDLE)
-            {
-                LogError("Could not connect to gpskill db: %s", error);
-                return defaultStats;
-            }
-        }
-
-        decl String:query[256];
-        Format(query, sizeof(query), "SELECT rating, deviation, volatility FROM gpskill WHERE steam_id = '%s' LIMIT 1;", auth);
-        new Handle:hResult = SQL_Query(hGpSkillConn, query);
-
-        if (INVALID_HANDLE == hResult)
-        {
-            if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
-            {
-                LogError("Could not retrieve stats for %s: %s", auth, error);
-            }
-            else
-            {
-                LogError("Could not retrieve stats for %s", auth);
-            }
-            
-            return defaultStats;
-        }
-
-        new Float:stats[3];
-        if (SQL_FetchRow(hResult))
-        {
-            stats[0] = SQL_FetchFloat(hResult, 0); // rating
-            stats[1] = SQL_FetchFloat(hResult, 1); // deviation
-            stats[2] = SQL_FetchFloat(hResult, 2); // volatility
-            PrintToServer("Got stats for %s: rating = %.02f, deviation = %.02f, volatility = %.04f", auth, stats[0], stats[1], stats[2]);
-            
-            CloseHandle(hResult);
-            
-            return stats;
-        }
-        else
-        {
-            PrintToServer("No stats result for %s. Creating default record.", auth);
-            decl String:defRecordQuery[256];
-            Format(defRecordQuery, sizeof(defRecordQuery), "INSERT INTO gpskill (steam_id, rating, deviation, volatility) VALUES ('%s', %.02f,  %.02f, %.04f);", auth, defaultStats[0], defaultStats[1], defaultStats[2]);
-            SQL_Query(hGpSkillConn, defRecordQuery);
-            
-            CloseHandle(hResult);
-            
+            LogError("Could not connect to gpskill db: %s", error);
             return defaultStats;
         }
     }
-}
-
-GpSkill_UpdatePlayerStats(const String:auth[], float rating, float deviation, float volatility)
-{
-    decl String:error[512];
-    if (GpSkill_Enabled())
+    
+    decl String:query[256];
+    Format(query, sizeof(query), "SELECT mean, deviation, conservativeRating FROM gpskill WHERE steam_id = '%s' LIMIT 1;", auth);
+    new Handle:hResult = SQL_Query(hGpSkillConn, query);
+    if (hResult == INVALID_HANDLE)
     {
-        if (hGpSkillConn == INVALID_HANDLE)
+        if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
         {
-            hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
-            if (hGpSkillConn == INVALID_HANDLE)
-            {
-                LogError("Could not connect to gpskill db: %s", error);
-            }
-        }
-
-        decl String:query[256];
-        Format(query, sizeof(query), "UPDATE gpskill SET rating = %.02f, deviation = %.02f, volatility = %.04f WHERE steam_id = '%s';", rating, deviation, volatility, auth);
-        new Handle:hResult = SQL_Query(hGpSkillConn, query);
-
-        if (INVALID_HANDLE == hResult)
-        {
-            if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
-            {
-                LogError("Could not update stats for %s: %s", auth, error);
-            }
-            else
-            {
-                LogError("Could not update stats for %s", auth);
-            }
+            LogError("Could not retrieve stats for %s: %s", auth, error);
         }
         else
         {
-            CloseHandle(hResult);
+            LogError("Could not retrieve stats for %s", auth);
         }
+        
+        return defaultStats;
     }
-}
-
-// Implementation of Glicko 2 ranking system. http://www.glicko.net/glicko/glicko2.pdf
-// Slightly modified to better represent Team vs Team according to http://rhetoricstudios.com/downloads/AbstractingGlicko2ForTeamGames.pdf
-Float:GpSkill_RunGlickoTwo(Handle:handleTeam1, Handle:handleTeam2, int teamWinner)
-{
-    if (GpSkill_Enabled())
+    
+    new Float:stats[3];
+    if (SQL_FetchRow(hResult))
     {
-        PrintToServer("[GP] Running Glicko 2 skill update.");
+        stats[0] = SQL_FetchFloat(hResult, 0); // mean
+        stats[1] = SQL_FetchFloat(hResult, 1); // deviation
+        stats[2] = SQL_FetchFloat(hResult, 2); // conservative rating
         
-        // Who won the match
-        float team1Outcome = 0.0;
-        float team2Outcome = 0.0;
-        if (teamWinner == 0)
-        {   //Draw
-            team1Outcome = 0.5;
-            team2Outcome = 0.5;
-        }
-        else if (teamWinner == 1)
-        {   // Team 1 Wins
-            team1Outcome = 1.0;
-            team2Outcome = 0.0;
-        }
-        else if (teamWinner == 2)
-        {   // Team 2 Wins
-            team1Outcome = 0.0;
-            team2Outcome = 1.0;
-        }
+        CloseHandle(hResult);
         
-        // Calculate Team 1 average rating and deviation
-        float team1RatingTotal = 0.0;
-        float team1DeviationTotal = 0.0;
-        for (int i = 0; i < GetArraySize(handleTeam1); i++)
-        {
-            decl String:auth[STEAMID_LEN];
-            GetArrayString(handleTeam1, i, auth, STEAMID_LEN);
-            new Float:stats[3];
-            stats = GpSkill_FetchPlayerStats(auth);
-            
-            team1RatingTotal += stats[0];
-            team1DeviationTotal += stats[1];
-        }
-        float team1RatingAvg = (team1RatingTotal / GetArraySize(handleTeam1));
-        float team1DeviationAvg = (team1DeviationTotal / GetArraySize(handleTeam1));
-        
-        // Calculate Team 2 average rating and deviation
-        float team2RatingTotal = 0.0;
-        float team2DeviationTotal = 0.0;
-        for (int i = 0; i < GetArraySize(handleTeam2); i++)
-        {
-            decl String:auth[STEAMID_LEN];
-            GetArrayString(handleTeam2, i, auth, STEAMID_LEN);
-            new Float:stats[3];
-            stats = GpSkill_FetchPlayerStats(auth);
-            
-            team2RatingTotal += stats[0];
-            team2DeviationTotal += stats[1];
-        }
-        float team2RatingAvg = (team2RatingTotal / GetArraySize(handleTeam2));
-        float team2DeviationAvg = (team2DeviationTotal / GetArraySize(handleTeam2));
-        
-        // Update Team 1
-        PrintToServer("[GP] Updating Team 1 skill ratings.");
-        for (int i = 0; i < GetArraySize(handleTeam1); i++)
-        {
-            decl String:auth[STEAMID_LEN];
-            GetArrayString(handleTeam1, i, auth, STEAMID_LEN);
-            new Float:playerStats[3];
-            playerStats = GpSkill_FetchPlayerStats(auth);
-            
-            new Float:oppTeamStats[3];
-            oppTeamStats[0] = team2RatingAvg;
-            oppTeamStats[1] = team2DeviationAvg;
-            
-            GpSkill_CalculateGlicko(auth, playerStats, oppTeamStats, team1Outcome);
-        }
-        
-        // Update Team 2
-        PrintToServer("[GP] Updating Team 2 skill ratings.");
-        for (int i = 0; i < GetArraySize(handleTeam2); i++)
-        {
-            decl String:auth[STEAMID_LEN];
-            GetArrayString(handleTeam2, i, auth, STEAMID_LEN);
-            new Float:playerStats[3];
-            playerStats = GpSkill_FetchPlayerStats(auth);
-            
-            new Float:oppTeamStats[3];
-            oppTeamStats[0] = team1RatingAvg;
-            oppTeamStats[1] = team1DeviationAvg;
-            
-            GpSkill_CalculateGlicko(auth, playerStats, oppTeamStats, team2Outcome);
-        }
-        
-        PrintToServer("[GP] Finished Glicko 2 skill updates.");
-    }
-}
-
-GpSkill_CalculateGlicko(const String:auth[], Float:playerStats[3], Float:oppTeamStats[3], float teamOutcome)
-{
-    float glicko_two_constant = 173.7178;
-    float tau = 0.5;
-    float euler_number = 2.71828;
-    float convergence_tolerance = 0.000001;
-
-    // Step 1 and 2 of Glicko 2
-    float playerMu = ((playerStats[0] - 1500) / glicko_two_constant); // Rating
-    float playerPhi = (playerStats[1] / glicko_two_constant); // Deviation
-    float playerSigma = playerStats[2]; // volatility
-    
-    float opponentMu = ((oppTeamStats[0] - 1500) / glicko_two_constant); // Rating
-    float opponentPhi = (oppTeamStats[1] / glicko_two_constant); // Deviation
-    
-    // Step 3 of Glicko 2
-    float opponentGValue = (1.0 / (Float:SquareRoot(1.0 + ((3.0 * (opponentPhi * opponentPhi)) / (3.14159 * 3.14159)))));
-    float opponentEValue = (1.0 / (1.0 + (Float:Exponential((-1.0 * opponentGValue) * (playerMu - opponentMu)))));
-    float v = Float:Pow(((opponentGValue * opponentGValue) * opponentEValue * (1.0 - opponentEValue)), -1.0);
-    
-    // Step 4 of Glicko 2
-    float delta = v * (opponentGValue * (teamOutcome - opponentEValue));
-    
-    // Step 5 of Glicko 2
-    float a = Float:Logarithm((playerSigma * playerSigma), euler_number);
-    
-    float A = a;
-    float B = 0.0;
-    if ((delta * delta) > ((playerPhi * playerPhi) + v))
-    {
-        B = Float:Logarithm((delta * delta) - (playerPhi * playerPhi) - v);
+        return stats;
     }
     else
     {
-        float k = 1.0;
-        B = a - (k * tau);
-        while (GpSkill_IllinoisAlgorithm(B, delta, playerPhi, v, a, tau) < 0.0)
+        PrintToServer("No stats result for %s. Creating default record.", auth);
+        decl String:defRecordQuery[256];
+        Format(defRecordQuery, sizeof(defRecordQuery), "INSERT INTO gpskill (steam_id, mean, deviation, conservativeRating) VALUES ('%s', %.2f,  %.3f, %.2f);", auth, defaultStats[0], defaultStats[1], defaultStats[2]);
+        SQL_Query(hGpSkillConn, defRecordQuery);
+        
+        CloseHandle(hResult);
+        
+        return defaultStats;
+    }
+}
+
+GpSkill_SavePlayerStats(const String:auth[], Float:mean, Float:deviation, Float:conservativeRating)
+{
+    decl String:error[512];
+    if (hGpSkillConn == INVALID_HANDLE)
+    {
+        hGpSkillConn = SQL_Connect("gpskill", true, error, sizeof(error));
+        if (hGpSkillConn == INVALID_HANDLE)
         {
-            k = k + 1.0;
-            B = a - (k * tau);
+            LogError("Could not connect to gpskill db: %s", error);
         }
     }
     
-    float fA = GpSkill_IllinoisAlgorithm(A, delta, playerPhi, v, a, tau);
-    float fB = GpSkill_IllinoisAlgorithm(B, delta, playerPhi, v, a, tau);
-    
-    while (Float:FloatAbs(B - A) > convergence_tolerance)
+    decl String:query[256];
+    Format(query, sizeof(query), "UPDATE gpskill SET mean = %.6f, deviation = %.6f, conservativeRating = %.6f WHERE steam_id = '%s';", mean, deviation, conservativeRating, auth);
+    new Handle:hResult = SQL_Query(hGpSkillConn, query);
+    if (hResult == INVALID_HANDLE)
     {
-        float C = A + (((A - B) * fA) / (fB - fA));
-        float fC = GpSkill_IllinoisAlgorithm(C, delta, playerPhi, v, a, tau);
-        
-        if (fC * fB < 0.0)
+        if (SQL_GetError(hGpSkillConn, error, sizeof(error)))
         {
-            A = B;
-            fA = fB;
+            LogError("Could not update stats for %s: %s", auth, error);
         }
         else
         {
-            fA = (fA / 2.0);
+            LogError("Could not update stats for %s", auth);
         }
-        
-        B = C;
-        fB = fC;
+    }
+    else
+    {
+        CloseHandle(hResult);
+    }
+}
+
+public Float:GpSkill_MatchQuality(Handle:handleTeam1, Handle:handleTeam2)
+{
+    int totalPlayers = GetArraySize(handleTeam1) + GetArraySize(handleTeam2);
+    new Float:betaSquared = defaultBeta * defaultBeta;
+
+    new Float:team1Stats[2];
+    team1Stats = GetTeamStatsSums(handleTeam1);
+    new Float:team2Stats[2];
+    team2Stats = GetTeamStatsSums(handleTeam2);
+
+    new Float:sqrtPart = Float:SquareRoot((totalPlayers * betaSquared) / ((totalPlayers * betaSquared) + team1Stats[1] + team2Stats[1]));
+    new Float:meanSumSquared = (team1Stats[0] - team2Stats[0]) * (team1Stats[0] - team2Stats[0]);
+    new Float:expPart = Float:Exponential((-1.0 * meanSumSquared) / (2.0 * ((totalPlayers * betaSquared) + team1Stats[1] + team2Stats[1])));
+    
+    return (expPart * sqrtPart);
+}
+
+public GpSkill_RunTrueskill(Handle:handleTeam1, Handle:handleTeam2, int teamWinner)
+{
+    PrintToServer("[GP] Running Trueskill update.");
+    
+    new MatchOutcome:team1Outcome;
+    new MatchOutcome:team2Outcome;
+    switch (teamWinner)
+    {
+        case 0:
+        {
+            team1Outcome = DRAW;
+            team2Outcome = DRAW;
+        }
+        case 1:
+        {
+            team1Outcome = WIN;
+            team2Outcome = LOSE;
+        }
+        case 2:
+        {
+            team1Outcome = LOSE;
+            team2Outcome = WIN;
+        }
     }
     
-    float newPlayerSigma = Float:Exponential(A / 2.0);
+    new Float:team1Stats[2];
+    team1Stats = GetTeamStatsSums(handleTeam1);
     
-    // Step 6 of Glicko 2
-    float phiStar = Float:SquareRoot((playerPhi * playerPhi) + (newPlayerSigma * newPlayerSigma));
+    new Float:team2Stats[2];
+    team2Stats = GetTeamStatsSums(handleTeam2);
     
-    // Step 7 of Glicko 2
-    float newPlayerPhi = 1.0 / Float:SquareRoot((1.0 / (phiStar * phiStar)) + (1.0 / v));
-    float newPlayerMu = playerMu + ((newPlayerPhi * newPlayerPhi) * (opponentGValue * (teamOutcome - opponentEValue)));
+    GpSkill_UpdatePlayerRatings(handleTeam1, team1Stats, handleTeam2, team2Stats, team1Outcome);
+    GpSkill_UpdatePlayerRatings(handleTeam2, team2Stats, handleTeam1, team1Stats, team2Outcome);
+}
+
+public GpSkill_UpdatePlayerRatings(Handle:thisTeam, Float:thisTeamStats[], Handle:otherTeam, Float:otherTeamStats[], MatchOutcome:matchOutcome)
+{
+    new Float:drawMargin = GetDrawMarginFromDrawProbability(defaultDrawProbability, defaultBeta);
+    new Float:betaSquared = (defaultBeta * defaultBeta);
+    new Float:tauSquared = (defaultDynamicsFactor * defaultDynamicsFactor);
+
+    int totalPlayers = GetArraySize(thisTeam) + GetArraySize(otherTeam);
+
+    new Float:totalVarianceSum = 0.0;
+    new Float:thisTeamMeanSum = 0.0;
+    new Float:otherTeamMeanSum = 0.0;
     
-    // update DB values
-    GpSkill_UpdatePlayerStats(auth, ((newPlayerMu * glicko_two_constant) + 1500), (newPlayerPhi * glicko_two_constant), newPlayerSigma);
+    thisTeamMeanSum = thisTeamStats[0];
+    totalVarianceSum += thisTeamStats[1];
     
-    // print new rating and change to user
-    if (GpSkill_Show_Rating())
+    otherTeamMeanSum = otherTeamStats[0];
+    totalVarianceSum += otherTeamStats[1];
+    
+    new Float:c = Float:SquareRoot(totalVarianceSum + (totalPlayers * betaSquared));
+    
+    new Float:winningMean = thisTeamMeanSum;
+    new Float:losingMean = otherTeamMeanSum;
+
+    switch (matchOutcome)
     {
-        new client = FindClientByAuthString(auth);
-        if (client > 0 && IsClientConnected(client) && IsClientInGame(client) && !IsClientSourceTV(client) && !IsFakeClient(client))
+        case WIN:{}
+        case DRAW:{}
+        case LOSE:
         {
-            decl String:msg[64];
-            Format(msg, sizeof(msg), "New GPSkill Rating: %.0f (", ((newPlayerMu * glicko_two_constant) + 1500));
+            winningMean = otherTeamMeanSum;
+            losingMean = thisTeamMeanSum;
+        }
+    }
+
+    new Float:meanDelta = winningMean - losingMean;
+    
+    new Float:v;
+    new Float:w;
+    new Float:rankMultiplier;
+
+    if (matchOutcome == WIN)
+    {
+        // win
+        v = GaussianVExceedsMargin(meanDelta / c, drawMargin / c);
+        w = GaussianWExceedsMargin(meanDelta / c, drawMargin / c);
+        rankMultiplier = 1.0;
+    }
+    else if (matchOutcome == LOSE)
+    {
+        // lose
+        v = GaussianVExceedsMargin(meanDelta / c, drawMargin / c);
+        w = GaussianWExceedsMargin(meanDelta / c, drawMargin / c);
+        rankMultiplier = -1.0;
+    }
+    else
+    {
+        // draw
+        v = GaussianVWithinMargin(meanDelta / c, drawMargin / c);
+        w = GaussianWWithinMargin(meanDelta / c, drawMargin / c);
+        rankMultiplier = 0.0;
+    }
+    
+    for (int i = 0; i < GetArraySize(thisTeam); i++)
+    {
+        decl String:auth[STEAMID_LEN];
+        GetArrayString(thisTeam, i, auth, sizeof(auth));
+        
+        new Float:stats[3];
+        stats = GpSkill_FetchPlayerStats(auth);
+        
+        new Float:meanMultiplier = ((stats[1] * stats[1]) + tauSquared) / c;
+        new Float:stdDevMultiplier = ((stats[1] * stats[1]) + tauSquared) / (c * c);
+        new Float:playerMeanDelta = (rankMultiplier * meanMultiplier * v);
+        
+        new Float:newMean = stats[0] + playerMeanDelta;
+        new Float:newStdDev = Float:SquareRoot(((stats[1] * stats[1]) + tauSquared) * (1.0 - w * stdDevMultiplier));
+        new Float:newRating = GpSkill_CalculateConservativeRating(newMean, newStdDev);
+        
+        // update DB values
+        GpSkill_SavePlayerStats(auth, newMean, newStdDev, newRating);
+    
+        // print new rating and change to user
+        if (GpSkill_Show_Rating())
+        {
+            new client = FindClientByAuthString(auth);
+            if (client > 0 && IsClientConnected(client) && IsClientInGame(client) && !IsClientSourceTV(client) && !IsFakeClient(client))
+            {
+                decl String:msg[64];
+                Format(msg, sizeof(msg), "New GPSkill Rating: %.2f (", newRating);
             
-            float difference = (newPlayerMu - playerMu);
-            if (difference > 0.0)
-                StrCat(msg, sizeof(msg), "+");
+                float difference = (newRating - stats[2]);
+                if (difference > 0.0)
+                    StrCat(msg, sizeof(msg), "+");
                 
-            StrCat(msg, sizeof(msg), "%.0f)");
-            Format(msg, sizeof(msg), msg, (difference * glicko_two_constant));
+                StrCat(msg, sizeof(msg), "%.2f)");
+                Format(msg, sizeof(msg), msg, difference);
             
-            Menu menu = new Menu(GPSkillChangeDisplay);
-            menu.SetTitle(msg);
-            menu.AddItem("Dismiss", "Dismiss");
-            menu.ExitButton = false;
-            menu.Display(client, 30);
+                Menu menu = new Menu(GPSkillChangeDisplay);
+                menu.SetTitle(msg);
+                menu.AddItem("Dismiss", "Dismiss");
+                menu.ExitButton = false;
+                menu.Display(client, 30);
+            }
         }
     }
 }
 
-Float:GpSkill_IllinoisAlgorithm(float x, float delta, float phi, float v, float a, float tau)
+public Float:GpSkill_CalculateConservativeRating(Float:mean, Float:deviation)
 {
-    float result = Float:Exponential(x) * ((delta * delta) - (phi * phi) - v - Float:Exponential(x)) / (2.0 * Float:Pow((phi * phi) + v + Float:Exponential(x), 2.0)) - ((x - a) / (tau * tau));
-    return result;
+    return (mean - (conservativeRatingMultiplier * deviation));
+}
+
+Float:GetDrawMarginFromDrawProbability(Float:drawProbability, Float:beta)
+{
+    new Float:inverseCumulative = GaussianInverseCumulativeTo(0.5 * (drawProbability + 1.0));
+    return (inverseCumulative * Float:SquareRoot(1.0 + 1.0) * beta);
 }
 
 public int GPSkillChangeDisplay(Menu menu, MenuAction action, int param1, int param2)
@@ -416,11 +373,34 @@ public int GPSkillChangeDisplay(Menu menu, MenuAction action, int param1, int pa
 	/* If the menu was cancelled, print a message to the server about it. */
 	else if (action == MenuAction_Cancel)
 	{
-		PrintToServer("Client %d's menu was cancelled.  Reason: %d", param1, param2);
+		PrintToServer("Client %d's menu was cancelled. Reason: %d", param1, param2);
 	}
 	/* If the menu has ended, destroy it */
 	else if (action == MenuAction_End)
 	{
 		delete menu;
 	}
+}
+
+Float:GetTeamStatsSums(Handle:handleTeam)
+{
+    new Float:totalMean = 0.0;
+    new Float:totalStdDev = 0.0;
+    
+    for (int i = 0; i < GetArraySize(handleTeam); i++)
+    {
+        decl String:auth[STEAMID_LEN];
+        GetArrayString(handleTeam, i, auth, sizeof(auth));
+        
+        new Float:stats[3];
+        stats = GpSkill_FetchPlayerStats(auth);
+        
+        totalMean += stats[0];
+        totalStdDev += (stats[1] * stats[1]);
+    }
+    
+    new Float:totalStats[2];
+    totalStats[0] = totalMean;
+    totalStats[1] = totalStdDev;
+    return totalStats;
 }

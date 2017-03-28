@@ -44,7 +44,7 @@
 #include <gp_team>
 #include <gp_skill>
 
-#define GOONPUG_VERSION "2.0.4"
+#define GOONPUG_VERSION "2.1.0"
 #define MAX_CMD_LEN 32
 #define STEAMID_LEN 32
 #define MAX_MAPNAME_LEN PLATFORM_MAX_PATH
@@ -89,9 +89,9 @@ new Handle:hPlayerWaitingNameArray = INVALID_HANDLE;
 new Handle:hPlayerWaitingAuthArray = INVALID_HANDLE;
 new Handle:hPlayerDisconnectTimersTrie = INVALID_HANDLE;
 
-new Handle:hPlayerRating = INVALID_HANDLE;
+new Handle:hPlayerMean = INVALID_HANDLE;
 new Handle:hPlayerDeviation = INVALID_HANDLE;
-new Handle:hPlayerVolatility = INVALID_HANDLE;
+new Handle:hPlayerConservativeRating = INVALID_HANDLE;
 new Handle:hSortedClients = INVALID_HANDLE;
 
 new Handle:hRestrictCaptainsLimit = INVALID_HANDLE;
@@ -199,9 +199,9 @@ public OnPluginStart()
     GpTeam_Init();
     GpSkill_Init();
 
-    hPlayerRating = CreateTrie();
+    hPlayerMean = CreateTrie();
     hPlayerDeviation = CreateTrie();
-    hPlayerVolatility = CreateTrie();
+    hPlayerConservativeRating = CreateTrie();
     hSortedClients = CreateArray();
 }
 
@@ -217,12 +217,12 @@ public OnPluginEnd()
         CloseHandle(hWarmupMapKeys);
     if (hWarmupMaps != INVALID_HANDLE)
         CloseHandle(hWarmupMaps);
-    if (hPlayerRating != INVALID_HANDLE)
-        CloseHandle(hPlayerRating);
+    if (hPlayerMean != INVALID_HANDLE)
+        CloseHandle(hPlayerMean);
     if (hPlayerDeviation != INVALID_HANDLE)
         CloseHandle(hPlayerDeviation);
-    if (hPlayerVolatility != INVALID_HANDLE)
-        CloseHandle(hPlayerVolatility);
+    if (hPlayerConservativeRating != INVALID_HANDLE)
+        CloseHandle(hPlayerConservativeRating);
     if (hSortedClients != INVALID_HANDLE)
         CloseHandle(hSortedClients);
     if (hSaveCash != INVALID_HANDLE)
@@ -354,27 +354,20 @@ ClientIsWaiting(client)
 public OnClientAuthorized(client, const String:auth[])
 {
     if (IsFakeClient(client))
-    {
         return;
-    }
 
     decl String:playerName[MAX_NAME_LENGTH];
     GetClientName(client, playerName, sizeof(playerName));
     PrintToChatAll("\x01\x0b\x04%s connected", playerName);
 
     if (ClientIsWaiting(client))
-    {
         MoveFromWaitingToReady(client);
-    }
 
-    if (GpSkill_Enabled())
-    {
-        new Float:stats[3];
-        stats = GpSkill_FetchPlayerStats(auth);
-        SetTrieValue(hPlayerRating, auth, stats[0]);
-        SetTrieValue(hPlayerDeviation, auth, stats[1]);
-        SetTrieValue(hPlayerVolatility, auth, stats[2]);
-    }
+    new Float:stats[3];
+    stats = GpSkill_FetchPlayerStats(auth);
+    SetTrieValue(hPlayerMean, auth, stats[0]);
+    SetTrieValue(hPlayerDeviation, auth, stats[1]);
+    SetTrieValue(hPlayerConservativeRating, auth, stats[2]);
 
     new enforceRates = GetConVarInt(hEnforceRates);
     if (0 != enforceRates)
@@ -484,22 +477,19 @@ public OnMapStart()
 
     ClearSaves();
 
-    if (GpSkill_Enabled())
+    // Refresh everyone's average rating
+    for (new i = 1; i <= MaxClients; i++)
     {
-        // Refresh everyone's average rating
-        for (new i = 1; i <= MaxClients; i++)
+        if (IsValidPlayer(i) && !IsFakeClient(i))
         {
-            if (IsValidPlayer(i) && !IsFakeClient(i))
-            {
-                decl String:auth[STEAMID_LEN];
-                GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
-                
-                new Float:stats[3];
-                stats = GpSkill_FetchPlayerStats(auth);
-                SetTrieValue(hPlayerRating, auth, stats[0]);
-                SetTrieValue(hPlayerDeviation, auth, stats[1]);
-                SetTrieValue(hPlayerVolatility, auth, stats[2]);
-            }
+            decl String:auth[STEAMID_LEN];
+            GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth));
+            
+            new Float:stats[3];
+            stats = GpSkill_FetchPlayerStats(auth);
+            SetTrieValue(hPlayerMean, auth, stats[0]);
+            SetTrieValue(hPlayerDeviation, auth, stats[1]);
+            SetTrieValue(hPlayerConservativeRating, auth, stats[2]);
         }
     }
 
@@ -988,7 +978,7 @@ public Action:Command_Unready(client, args)
     {
         switch (g_matchState)
         {
-            case MS_PICK_CAPTAINS, MS_PICK_TEAMS:
+            case MS_MAP_VOTE, MS_PICK_CAPTAINS, MS_PICK_TEAMS:
             {
                 PrintToChat(client, "[GP] You cannot unready right now as it would break team picking.");
             }
@@ -1013,7 +1003,7 @@ public Action:Command_ShowRating(client, args)
     new Float:stats[3];
     stats = GpSkill_FetchPlayerStats(auth);
     
-    PrintToChat(client, "GPSkill Rating: %.0f", stats[0]);
+    PrintToChat(client, "GPSkill Rating: %.2f", stats[2]);
 
     return Plugin_Handled;
 }
@@ -1416,10 +1406,10 @@ ChooseCaptains()
     new i = 0;
     
     new maxCaptains = GetConVarInt(hRestrictCaptainsLimit);
-    if (maxCaptains < 2 || !GpSkill_Enabled())
-        maxCaptains = 10;
+    if (maxCaptains < 2)
+        maxCaptains = 5;
 
-    // Get up to 4 highest rating players
+    // Get up to X highest rating players
     while (count < maxCaptains && i < GetArraySize(hSortedClients))
     {
         new client = GetArrayCell(hSortedClients, i);
@@ -1430,16 +1420,11 @@ ChooseCaptains()
             decl String:name[MAX_NAME_LENGTH];
             GetClientName(client, name, sizeof(name));
             decl String:display[MAX_NAME_LENGTH * 2];
-            if (GpSkill_Enabled())
-            {
-                decl Float:rating;
-                GetTrieValue(hPlayerRating, auth, rating);
-                Format(display, sizeof(display), "(%.0f) %s", rating, name);
-            }
-            else
-            {
-                Format(display, sizeof(display), "%s", name);
-            }
+            
+            decl Float:rating;
+            GetTrieValue(hPlayerConservativeRating, auth, rating);
+            Format(display, sizeof(display), "(%.2f) %s", rating, name);
+                
             AddMenuItem(menu, name, display);
             count++;
         }
@@ -1496,25 +1481,22 @@ SortPlayersByRating()
             PushArrayCell(hSortedClients, i);
         }
     }
-    if (GpSkill_Enabled())
-        SortADTArrayCustom(hSortedClients, RatingSortDescending);
+    
+    SortADTArrayCustom(hSortedClients, RatingSortDescending);
 }
 
 public RatingSortDescending(index1, index2, Handle:array, Handle:hndl)
 {
-    if (!GpSkill_Enabled())
-        return 0;
-
     decl String:auth1[STEAMID_LEN];
     GetClientAuthId(GetArrayCell(array, index1), AuthId_Steam2, auth1, sizeof(auth1));
     decl String:auth2[STEAMID_LEN];
     GetClientAuthId(GetArrayCell(array, index2), AuthId_Steam2, auth2, sizeof(auth2));
 
     decl Float:rating1;
-    if (!GetTrieValue(hPlayerRating, auth1, rating1))
+    if (!GetTrieValue(hPlayerConservativeRating, auth1, rating1))
         rating1 = 0.0;
     decl Float:rating2;
-    if (!GetTrieValue(hPlayerRating, auth2, rating2))
+    if (!GetTrieValue(hPlayerConservativeRating, auth2, rating2))
         rating2 = 0.0;
 
     if (rating1 > rating2)
@@ -1561,66 +1543,47 @@ DetermineFirstPick()
     g_captClients[1] = capt2;
     LogAction(g_captClients[0], -1, "\"%L\" triggered \"GP Captain\"", g_captClients[0]);
     LogAction(g_captClients[1], -1, "\"%L\" triggered \"GP Captain\"", g_captClients[1]);
-
-    if (GpSkill_Enabled())
+    
+    decl Float:capt1rating;
+    if (capt1 < 0)
     {
-        decl Float:capt1rating;
-        if (capt1 < 0)
-        {
-            LogError("Got invalid client for captain: %s", g_capt1);
-            capt1rating = 0.0;
-        }
-        else
-        {
-            decl String:auth1[STEAMID_LEN];
-            GetClientAuthId(capt1, AuthId_Steam2, auth1, sizeof(auth1));
-            if (!GetTrieValue(hPlayerRating, auth1, capt1rating))
-            {
-                capt1rating = 0.0;
-            }
-        }
-
-        decl Float:capt2rating;
-        if (capt2 < 0)
-        {
-            LogError("Got invalid client for captain: %s", g_capt2);
-            capt2rating = 0.0;
-        }
-        else
-        {
-            decl String:auth2[STEAMID_LEN];
-            GetClientAuthId(capt2, AuthId_Steam2, auth2, sizeof(auth2));
-            if (!GetTrieValue(hPlayerRating, auth2, capt2rating))
-            {
-                capt2rating = 0.0;
-            }
-        }
-
-        PrintToChatAll("[GP] %s's GP Skill: %.0f", g_capt1, capt1rating);
-        PrintToChatAll("[GP] %s's GP Skill: %.0f", g_capt2, capt2rating);
-
-        if (capt1rating > capt2rating)
-        {
-            SwapCaptains();
-        }
-        else if (capt1rating == capt2rating)
-        {
-            new rand = GetURandomInt() % 2;
-            if (rand == 1)
-            {
-                SwapCaptains();
-            }
-        }
+        LogError("Got invalid client for captain: %s", g_capt1);
+        capt1rating = 0.0;
     }
     else
     {
-        new rand = GetURandomInt() % 2;
-        if (rand == 1)
+        decl String:auth1[STEAMID_LEN];
+        GetClientAuthId(capt1, AuthId_Steam2, auth1, sizeof(auth1));
+        if (!GetTrieValue(hPlayerConservativeRating, auth1, capt1rating))
         {
-            SwapCaptains();
+            capt1rating = 0.0;
         }
     }
-
+    
+    decl Float:capt2rating;
+    if (capt2 < 0)
+    {
+        LogError("Got invalid client for captain: %s", g_capt2);
+        capt2rating = 0.0;
+    }
+    else
+    {
+        decl String:auth2[STEAMID_LEN];
+        GetClientAuthId(capt2, AuthId_Steam2, auth2, sizeof(auth2));
+        if (!GetTrieValue(hPlayerConservativeRating, auth2, capt2rating))
+        {
+            capt2rating = 0.0;
+        }
+    }
+    
+    PrintToChatAll("[GP] %s's GP Skill: %.2f", g_capt1, capt1rating);
+    PrintToChatAll("[GP] %s's GP Skill: %.2f", g_capt2, capt2rating);
+    
+    if (capt1rating > capt2rating)
+    {
+        SwapCaptains();
+    }
+    
     PrintToChatAll("[GP] %s will pick first. %s will pick sides", g_capt1, g_capt2);
     g_whosePick = 0;
 
@@ -1929,19 +1892,14 @@ Handle:BuildPickMenu(pickNum)
         decl String:name[MAX_NAME_LENGTH];
         GetClientName(client, name, sizeof(name));
         decl String:display[MAX_NAME_LENGTH];
-        if (GpSkill_Enabled())
-        {
-            decl String:auth[STEAMID_LEN];
-            GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
-            decl Float:rating;
-            if (!GetTrieValue(hPlayerRating, auth, rating))
-                rating = 0.0;
-            Format(display, sizeof(display), "(%.0f) %s", rating, name);
-        }
-        else
-        {
-            Format(display, sizeof(display), "%s", name);
-        }
+        
+        decl String:auth[STEAMID_LEN];
+        GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
+        decl Float:rating;
+        if (!GetTrieValue(hPlayerConservativeRating, auth, rating))
+            rating = 0.0;
+        Format(display, sizeof(display), "(%.2f) %s", rating, name);
+        
         AddMenuItem(menu, name, display);
     }
 
@@ -2311,33 +2269,30 @@ PostMatch(bool:abort=false, bool:samemap=false)
         LogToGame("GoonPUG triggered \"End_Match\"");
         
         // run gpskill update
-        if (GpSkill_Enabled())
+        int winner = 0; //0=draw, 1=team1, 2=team2
+        int team1Score = 0;
+        int team2Score = 0;
+        if (g_period % 2)
         {
-            int winner = 0; //0=draw, 1=team1, 2=team2
-            int team1Score = 0;
-            int team2Score = 0;
-            if (g_period % 2)
-            {
-                team1Score = GetTeamScore(CS_TEAM_CT);
-                team2Score = GetTeamScore(CS_TEAM_T);
-            }
-            else
-            {
-                team1Score = GetTeamScore(CS_TEAM_T);
-                team2Score = GetTeamScore(CS_TEAM_CT);
-            }
-            
-            if (team1Score > team2Score)
-            {
-                winner = 1;
-            }
-            else if (team2Score > team1Score)
-            {
-                winner = 2;
-            }
-            
-            GpSkill_RunGlickoTwo(hTeam1, hTeam2, winner);
+            team1Score = GetTeamScore(CS_TEAM_CT);
+            team2Score = GetTeamScore(CS_TEAM_T);
         }
+        else
+        {
+            team1Score = GetTeamScore(CS_TEAM_T);
+            team2Score = GetTeamScore(CS_TEAM_CT);
+        }
+            
+        if (team1Score > team2Score)
+        {
+            winner = 1;
+        }
+        else if (team2Score > team1Score)
+        {
+            winner = 2;
+        }
+        
+        GpSkill_RunTrueskill(hTeam1, hTeam2, winner);
     }
 
     // Set the nextmap to a warmup map
