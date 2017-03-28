@@ -123,15 +123,15 @@ Display GPSkill Online
 
 GPSkill stats are stored in an SQLite database located at /csgo/addons/sourcemod/data/sqlite/gpskill.sq3
 
-The table name is also gpskill and can be queried for steam id, mean, deviation, and conservativeRating. 
+The table name is also gpskill and can be queried for steam id, mean, deviation, and rating. 
 In order to fetch information about the player, such as current username or profile links use the [Steam API](https://developer.valvesoftware.com/wiki/Steam_Web_API).
 
 Current DB Structure:
 
-- steam_id            VARCHAR (32) NOT NULL PRIMARY KEY
-- mean                REAL         NOT NULL DEFAULT (25.00)
-- deviation           REAL         NOT NULL DEFAULT (8.333)
-- conservativeRating  REAL         NOT NULL DEFAULT (0.00)
+- steam_id     VARCHAR(32)  NOT NULL PRIMARY KEY
+- mean         REAL         NOT NULL DEFAULT (25.00)
+- deviation    REAL         NOT NULL DEFAULT (8.333)
+- rating       REAL         NOT NULL DEFAULT (0.00)
 
 
 Notes

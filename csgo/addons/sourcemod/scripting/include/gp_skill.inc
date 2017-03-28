@@ -68,7 +68,7 @@ GpSkill_Init()
     }
     
     decl String:query[256];
-    Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS gpskill (steam_id VARCHAR (32) NOT NULL PRIMARY KEY, mean REAL NOT NULL DEFAULT (25.00), deviation REAL NOT NULL DEFAULT (8.333), conservativeRating REAL NOT NULL DEFAULT (0.00));");
+    Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS gpskill (steam_id VARCHAR (32) NOT NULL PRIMARY KEY, mean REAL NOT NULL DEFAULT (25.00), deviation REAL NOT NULL DEFAULT (8.333), rating REAL NOT NULL DEFAULT (0.00));");
     new Handle:hResult = SQL_Query(hGpSkillConn, query);
     if (hResult == INVALID_HANDLE)
     {
@@ -119,7 +119,7 @@ Float:GpSkill_FetchPlayerStats(const String:auth[])
     }
     
     decl String:query[256];
-    Format(query, sizeof(query), "SELECT mean, deviation, conservativeRating FROM gpskill WHERE steam_id = '%s' LIMIT 1;", auth);
+    Format(query, sizeof(query), "SELECT mean, deviation, rating FROM gpskill WHERE steam_id = '%s' LIMIT 1;", auth);
     new Handle:hResult = SQL_Query(hGpSkillConn, query);
     if (hResult == INVALID_HANDLE)
     {
@@ -150,7 +150,7 @@ Float:GpSkill_FetchPlayerStats(const String:auth[])
     {
         PrintToServer("No stats result for %s. Creating default record.", auth);
         decl String:defRecordQuery[256];
-        Format(defRecordQuery, sizeof(defRecordQuery), "INSERT INTO gpskill (steam_id, mean, deviation, conservativeRating) VALUES ('%s', %.2f,  %.3f, %.2f);", auth, defaultStats[0], defaultStats[1], defaultStats[2]);
+        Format(defRecordQuery, sizeof(defRecordQuery), "INSERT INTO gpskill (steam_id, mean, deviation, rating) VALUES ('%s', %.2f,  %.3f, %.2f);", auth, defaultStats[0], defaultStats[1], defaultStats[2]);
         SQL_Query(hGpSkillConn, defRecordQuery);
         
         CloseHandle(hResult);
@@ -172,7 +172,7 @@ GpSkill_SavePlayerStats(const String:auth[], Float:mean, Float:deviation, Float:
     }
     
     decl String:query[256];
-    Format(query, sizeof(query), "UPDATE gpskill SET mean = %.6f, deviation = %.6f, conservativeRating = %.6f WHERE steam_id = '%s';", mean, deviation, conservativeRating, auth);
+    Format(query, sizeof(query), "UPDATE gpskill SET mean = %.6f, deviation = %.6f, rating = %.6f WHERE steam_id = '%s';", mean, deviation, conservativeRating, auth);
     new Handle:hResult = SQL_Query(hGpSkillConn, query);
     if (hResult == INVALID_HANDLE)
     {
