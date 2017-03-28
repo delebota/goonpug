@@ -169,7 +169,7 @@ public OnPluginStart()
                 "Restart the current match");
     RegAdminCmd("sm_endmatch", Command_EndMatch, ADMFLAG_CHANGEMAP,
                 "End the current match.");
-    
+
     // Hook commands
     AddCommandListener(Command_Jointeam, "jointeam");
     AddCommandListener(Command_Say, "say");
