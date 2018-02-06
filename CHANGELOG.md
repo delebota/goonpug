@@ -3,6 +3,7 @@
 ## GoonPUG 2.1.0
 * Removed Glicko-2 ranking system and went back to Trueskill.
 * GPSkill is always enabled now.
+* Updated default map lists.
 
 ## GoonPUG 2.0.4
 * Added '.gpskill' command as an alias for '.rating'.
