@@ -1848,7 +1848,7 @@ public Action:Timer_PickTeams(Handle:timer)
         return Plugin_Stop;
     }
 
-    if (pickCount == 2)
+    if (pickCount == 1)
     {
         g_whosePick ^= 1;
         pickCount = 0;
